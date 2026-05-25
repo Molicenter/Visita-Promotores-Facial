@@ -1,5 +1,7 @@
-Plaintext
+streamlit
+face-recognition
+opencv-python-headless
+pillow
+numpy
 pandas
-openpyxl
 streamlit-gsheets
-# Outras bibliotecas que você já usa, ex: face-recognition

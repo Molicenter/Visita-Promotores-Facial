@@ -56,7 +56,7 @@ def check_password():
         st.markdown("---")
 
         if st.session_state["tela_ativa"] == "menu_inicial":
-            st.write("### Escolha seu perfil para acessar:")
+            st.write("### Perfil de acesso:")
             if st.button("📷 SOU PROMOTOR (Validação Facial)", use_container_width=True, type="primary"):
                 st.session_state["tela_ativa"] = "camera_promotor"
                 st.rerun()

@@ -85,18 +85,15 @@ def check_password():
                 st.session_state["tela_ativa"] = "login_admin"
                 st.rerun()
 
-        # --- 2. TELA EXCLUSIVA: LOGIN DO FUNCIONÁRIO ---
+        # --- 2. TELA EXCLUSIVA: LOGIN DO FUNCIONÁRIO (BOTÕES INVERTIDOS PARA TAB) ---
         elif st.session_state["tela_ativa"] == "login_admin":
             st.subheader("Login Administrativo")
             email = st.text_input("E-mail", placeholder="seu_email@molicenter.com.br").lower().strip()
             senha = st.text_input("Senha", type="password")
             
+            # Invertido: coluna 1 agora é o Entrar (foco do TAB) e coluna 2 é o Voltar
             col_b1, col_b2 = st.columns(2)
             with col_b1:
-                if st.button("⬅️ Voltar", use_container_width=True):
-                    st.session_state["tela_ativa"] = "menu_inicial"
-                    st.rerun()
-            with col_b2:
                 if st.button("Entrar", use_container_width=True, type="primary"):
                     emails_gerentes = [f"gerente{i}@molicenter.com.br" for i in range(1, 15)]
                     email_analista = "analista@molicenter.com.br"
@@ -112,6 +109,10 @@ def check_password():
                         st.rerun()
                     else:
                         st.error("❌ E-mail ou senha incorretos.")
+            with col_b2:
+                if st.button("⬅️ Voltar", use_container_width=True):
+                    st.session_state["tela_ativa"] = "menu_inicial"
+                    st.rerun()
 
         # --- 3. TELA EXCLUSIVA: CÂMERA DO PROMOTOR (MODO BANCO SEVERO) ---
         elif st.session_state["tela_ativa"] == "camera_promotor":
@@ -240,28 +241,6 @@ def check_password():
 
 # --- FLUXO PRINCIPAL PÓS-LOGIN (GERENTES E ANALISTAS) ---
 if check_password():
-    with st.sidebar:
-        with st.expander("⚙️ Opções de Conta"):
-            st.write(f"👤 **Usuário:** {st.session_state['usuario_logado']}")
-            st.write(f"📊 **Perfil:** {st.session_state['perfil'].capitalize()}")
-            if st.button("Sair / Logout", use_container_width=True):
-                st.session_state.clear()
-                st.rerun()
-
-    def upload_para_imgbb(arquivo_foto):
-        try:
-            api_key = st.secrets["imgbb"]["api_key"]
-            url = "https://api.imgbb.com/1/upload"
-            foto_base64 = base64.b64encode(arquivo_foto.getvalue()).decode('utf-8')
-            payload = {"key": api_key, "image": foto_base64}
-            response = requests.post(url, payload)
-            res = response.json()
-            return res['data']['url'] if res['success'] else "Erro no Upload"
-        except: return "Erro no Upload"
-
-    st.title("Visita Promotores")
-    st.markdown("---")
-
     conn = st.connection("gsheets", type=GSheetsConnection)
 
     @st.cache_data
@@ -278,6 +257,7 @@ if check_password():
 
     df_forn = carregar_fornecedores()
 
+    # Mapeamento de colunas globais do Excel
     if df_forn is not None:
         col_fornecedor = df_forn.columns[1]  
         col_marcas = df_forn.columns[2]      
@@ -285,70 +265,96 @@ if check_password():
         col_promotor = df_forn.columns[4]     
         col_telefone = df_forn.columns[5]     
         col_frequencia = df_forn.columns[6] 
-        col_loja = df_forn.columns[-1]      
+        col_loja = df_forn.columns[-1]
+
+    # --- BARRA LATERAL (OPÇÕES DE CONTA + NOVO PAINEL DE CADASTRO COPIADO PARA CÁ) ---
+    with st.sidebar:
+        st.header("🎛️ Menu de Controle")
         
+        with st.expander("👤 Opções de Conta", expanded=True):
+            st.write(f"**Usuário:** {st.session_state['usuario_logado']}")
+            st.write(f"**Perfil:** {st.session_state['perfil'].capitalize()}")
+            if st.button("Sair / Logout", use_container_width=True):
+                st.session_state.clear()
+                st.rerun()
+                
+        st.markdown("---")
+        
+        # --- AJUSTE 2: PAINEL DE CADASTRO AGORA REPOSICIONADO NA ESQUERDA ---
+        if df_forn is not None:
+            with st.expander("⚙️ CADASTRO BIOMÉTRICO", expanded=False):
+                st.caption("Registre novos rostos diretamente no Google Drive corporativo.")
+                lista_empresas_cadastro = sorted(df_forn[col_fornecedor].dropna().unique().tolist())
+                empresa_alvo = st.selectbox("1. Empresa:", ["Escolha..."] + lista_empresas_cadastro, key="sb_cad_sidebar")
+                
+                if empresa_alvo != "Escolha...":
+                    filtro_prom = df_forn[df_forn[col_fornecedor] == empresa_alvo].iloc[0]
+                    st.info(f"Promotor: **{filtro_prom[col_promotor]}**")
+                    
+                    foto_gabarito = st.camera_input("2. Foto de perto (Gabarito)", key="cam_cad_sidebar")
+                    consentimento = st.checkbox("Termo assinado (LGPD)", key="chk_cad_sidebar")
+                    
+                    if st.button(f"Salvar Biometria", use_container_width=True, disabled=not consentimento, key="btn_cad_sidebar"):
+                        if foto_gabarito is not None:
+                            with st.spinner("Sincronizando Drive..."):
+                                try:
+                                    drive_service = obter_servico_drive()
+                                    folder_id = st.secrets["google_drive"]["folder_id"]
+                                    nome_arquivo_drive = f"{empresa_alvo}.jpg"
+                                    
+                                    caminho_local_salvar = "upload_gabarito.jpg"
+                                    with open(caminho_local_salvar, "wb") as f:
+                                        f.write(foto_gabarito.getbuffer())
+                                        
+                                    try:
+                                        DeepFace.extract_faces(img_path=caminho_local_salvar, detector_backend='opencv')
+                                    except:
+                                        st.error("❌ Nenhum rosto nítido encontrado. Refaça de perto.")
+                                        if os.path.exists(caminho_local_salvar): os.remove(caminho_local_salvar)
+                                        st.stop()
+                                        
+                                    query_busca = f"'{folder_id}' in parents and name = '{nome_arquivo_drive}' and trashed = false"
+                                    existentes = drive_service.files().list(q=query_busca, fields="files(id)").execute().get('files', [])
+                                    
+                                    metadata_arquivo = {'name': nome_arquivo_drive, 'parents': [folder_id]}
+                                    media = MediaFileUpload(caminho_local_salvar, mimetype='image/jpeg', resumable=True)
+                                    
+                                    if existentes:
+                                        drive_service.files().update(fileId=existentes[0]['id'], media_body=media).execute()
+                                    else:
+                                        drive_service.files().create(body=metadata_arquivo, media_body=media, fields='id').execute()
+                                        
+                                    st.success(f"✅ Salvo com sucesso!")
+                                    if os.path.exists(caminho_local_salvar): os.remove(caminho_local_salvar)
+                                    
+                                    pasta_local_temp = "temp_db_facial"
+                                    if os.path.exists(pasta_local_temp):
+                                        for f_limpar in os.listdir(pasta_local_temp): os.remove(os.path.join(pasta_local_temp, f_limpar))
+                                    time.sleep(1.5)
+                                    st.rerun()
+                                except Exception as err:
+                                    st.error(f"Erro Drive: {err}")
+                        else:
+                            st.error("Capture a foto primeiro.")
+
+    # --- FLUXO DA TELA CENTRAL ---
+    def upload_para_imgbb(arquivo_foto):
+        try:
+            api_key = st.secrets["imgbb"]["api_key"]
+            url = "https://api.imgbb.com/1/upload"
+            foto_base64 = base64.b64encode(arquivo_foto.getvalue()).decode('utf-8')
+            payload = {"key": api_key, "image": foto_base64}
+            response = requests.post(url, payload)
+            res = response.json()
+            return res['data']['url'] if res['success'] else "Erro No Upload"
+        except: return "Erro No Upload"
+
+    if df_forn is not None:
         fuso_br = pytz.timezone('America/Sao_Paulo')
         agora = datetime.now(fuso_br)
         dias_map = {0: 'SEG', 1: 'TER', 2: 'QUA', 3: 'QUI', 4: 'SEX', 5: 'SAB', 6: 'DOM'}
         dia_hoje = dias_map[agora.weekday()]
 
-        # --- PAINEL DE CADASTRO BIOMÉTRICO (Liberado para Gerentes e Analistas) ---
-        with st.expander("⚙️ PAINEL DE CADASTRO BIOMÉTRICO (Gerentes e Analistas)", expanded=False):
-            st.write("Utilize esta seção para registrar novos rostos diretamente no Google Drive de forma segura (LGPD).")
-            lista_empresas_cadastro = sorted(df_forn[col_fornecedor].dropna().unique().tolist())
-            empresa_alvo = st.selectbox("1. Escolha a Empresa/Fornecedor:", ["Escolha..."] + lista_empresas_cadastro)
-            
-            if empresa_alvo != "Escolha...":
-                filtro_prom = df_forn[df_forn[col_fornecedor] == empresa_alvo].iloc[0]
-                st.info(f"👤 Promotor cadastrado no Excel para esta empresa: **{filtro_prom[col_promotor]}**")
-                
-                foto_gabarito = st.camera_input("2. Tire a foto oficial de perto (Gabarito)")
-                consentimento = st.checkbox("Confirmo que o prestador leu e assinou o Termo de Consentimento Biométrico corporativo.")
-                
-                if st.button(f"Salvar Biometria de {empresa_alvo}", use_container_width=True, disabled=not consentimento):
-                    with st.spinner("Enviando com segurança para o Google Drive corporativo..."):
-                        try:
-                            drive_service = obter_servico_drive()
-                            folder_id = st.secrets["google_drive"]["folder_id"]
-                            nome_arquivo_drive = f"{empresa_alvo}.jpg"
-                            
-                            caminho_local_salvar = "upload_gabarito.jpg"
-                            with open(caminho_local_salvar, "wb") as f:
-                                f.write(foto_gabarito.getbuffer())
-                                
-                            # Valida qualidade da foto antes de subir
-                            try:
-                                DeepFace.extract_faces(img_path=caminho_local_salvar, detector_backend='opencv')
-                            except:
-                                st.error("❌ Nenhum rosto nítido encontrado na foto de cadastro. Refaça de perto.")
-                                if os.path.exists(caminho_local_salvar): os.remove(caminho_local_salvar)
-                                st.stop()
-                                
-                            query_busca = f"'{folder_id}' in parents and name = '{nome_arquivo_drive}' and trashed = false"
-                            existentes = drive_service.files().list(q=query_busca, fields="files(id)").execute().get('files', [])
-                            
-                            metadata_arquivo = {'name': nome_arquivo_drive, 'parents': [folder_id]}
-                            media = MediaFileUpload(caminho_local_salvar, mimetype='image/jpeg', resumable=True)
-                            
-                            if existentes:
-                                drive_service.files().update(fileId=existentes[0]['id'], media_body=media).execute()
-                            else:
-                                drive_service.files().create(body=metadata_arquivo, media_body=media, fields='id').execute()
-                                
-                            st.success(f"✅ Biometria de {empresa_alvo} salva e sincronizada com sucesso!")
-                            if os.path.exists(caminho_local_salvar): os.remove(caminho_local_salvar)
-                            
-                            # Limpa o cache para o totem baixar a foto nova imediatamente
-                            pasta_local_temp = "temp_db_facial"
-                            if os.path.exists(pasta_local_temp):
-                                for f_limpar in os.listdir(pasta_local_temp): os.remove(os.path.join(pasta_local_temp, f_limpar))
-                            time.sleep(2)
-                            st.rerun()
-                        except Exception as err:
-                            st.error(f"Erro no upload para o Drive: {err}")
-        st.markdown("---")
-
-        # --- SEÇÃO DA DASHBOARD NORMAL DAS LOJAS ---
         st.subheader(f"📅 Hoje é {agora.strftime('%d/%m')} ({dia_hoje})")
 
         lista_lojas = sorted(df_forn[col_loja].dropna().astype(str).unique().tolist())
@@ -403,7 +409,7 @@ if check_password():
                             with st.spinner('🚀 Gravando com segurança...'):
                                 link_f = upload_para_imgbb(foto) if foto else "Sem foto"
                                 
-                                if link_f != "Erro no Upload":
+                                if link_f != "Erro No Upload":
                                     try:
                                         df_atual = conn.read(ttl=0)
                                     except:

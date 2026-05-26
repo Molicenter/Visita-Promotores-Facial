@@ -106,7 +106,7 @@ def check_password():
                         if email == email_analista:
                             st.session_state["perfil"] = "analista"
                         else:
-                            st.session_state["perfil"] = "gerente"  # <--- CORRIGIDO PARA "gerente"
+                            st.session_state["perfil"] = "gerente"
                             st.session_state["loja_id"] = re.search(r'\d+', email).group()
                         st.session_state["form_count"] = 0
                         st.rerun()
@@ -394,7 +394,7 @@ if check_password():
                     st.success(f"✅ **Fornecedor:** {forn_sel}")
                     
                     obs = st.text_input("3. Observação (Opcional):", key=f"obs_{st.session_state['form_count']}")
-                    foto = st.file_uploader("📸 Foto do Registro", type=["jpg", "jpeg", "png"], key=f"foto_{st.session_state['foto_{st.session_state['form_count']}']}")
+                    foto = st.file_uploader("📸 Foto do Registro", type=["jpg", "jpeg", "png"], key=f"foto_{st.session_state['form_count']}")
                     
                     if foto: st.image(foto, width=250)
 

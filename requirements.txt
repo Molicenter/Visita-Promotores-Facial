@@ -7,3 +7,7 @@ numpy
 pandas
 openpyxl
 st-gsheets-connection
+google-api-python-client
+google-auth
+google-auth-httplib2
+google-auth-oauthlib

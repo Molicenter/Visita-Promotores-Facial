@@ -9,11 +9,6 @@ import base64
 import re
 import time
 from deepface import DeepFace
-
-# Bibliotecas do Google para baixar e subir gabaritos no Drive de forma segura (LGPD)
-from google.oauth2 import service_account
-from googleapiclient.discovery import build
-from googleapiclient.http import MediaIoBaseDownload, MediaFileUpload
 import io
 
 # --- CONFIGURAÇÃO E LOGO ---
@@ -29,28 +24,17 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- FUNÇÃO DE CONEXÃO COM GOOGLE DRIVE (API SEGURA PARA GABARITOS) ---
-def obter_servico_drive():
+# --- FUNÇÃO AUXILIAR DE UPLOAD IMGBB ---
+def upload_para_imgbb(arquivo_bytes):
     try:
-        info_projeto = {
-            "type": st.secrets["connections"]["gsheets"]["type"],
-            "project_id": st.secrets["connections"]["gsheets"]["project_id"],
-            "private_key_id": st.secrets["connections"]["gsheets"]["private_key_id"],
-            "private_key": st.secrets["connections"]["gsheets"]["private_key"],
-            "client_email": st.secrets["connections"]["gsheets"]["client_email"],
-            "client_id": st.secrets["connections"]["gsheets"]["client_id"],
-            "auth_uri": st.secrets["connections"]["gsheets"]["auth_uri"],
-            "token_uri": st.secrets["connections"]["gsheets"]["token_uri"],
-            "auth_provider_x509_cert_url": st.secrets["connections"]["gsheets"]["auth_provider_x509_cert_url"],
-            "client_x509_cert_url": st.secrets["connections"]["gsheets"]["client_x509_cert_url"]
-        }
-        creds = service_account.Credentials.from_service_account_info(
-            info_projeto, 
-            scopes=["https://www.googleapis.com/auth/drive"]
-        )
-        return build('drive', 'v3', credentials=creds)
-    except Exception as e:
-        st.error(f"Erro ao conectar com o Google Drive: {e}")
+        api_key = st.secrets["imgbb"]["api_key"]
+        url = "https://api.imgbb.com/1/upload"
+        foto_base64 = base64.b64encode(arquivo_bytes).decode('utf-8')
+        payload = {"key": api_key, "image": foto_base64}
+        response = requests.post(url, payload)
+        res = response.json()
+        return res['data']['url'] if res['success'] else None
+    except:
         return None
 
 # --- SISTEMA DE LOGIN COM SELEÇÃO DE FLUXO ---
@@ -125,7 +109,7 @@ def check_password():
             foto_capturada = st.camera_input("Centralize e aproxime o rosto da tela:")
             
             if foto_capturada:
-                with st.spinner('Validando enquadramento e buscando cadastro...'):
+                with st.spinner('Validando enquadramento e buscando na base de dados...'):
                     try:
                         caminho_temp_captura = "temp_identifica.jpg"
                         with open(caminho_temp_captura, "wb") as f:
@@ -145,29 +129,38 @@ def check_password():
                                 if os.path.exists(caminho_temp_captura): os.remove(caminho_temp_captura)
                                 st.stop()
                         
-                        drive_service = obter_servico_drive()
-                        folder_id = st.secrets["google_drive"]["folder_id"]
+                        # --- DOWNLOAD DOS GABARITOS BIOMÉTRICOS VIA PLANILHA (SEM GOOGLE DRIVE) ---
+                        conn = st.connection("gsheets", type=GSheetsConnection)
+                        try:
+                            df_biometria = conn.read(worksheet="BIOMETRIA_GABARITOS", ttl=0)
+                        except:
+                            df_biometria = pd.DataFrame()
                         
                         pasta_local_temp = "temp_db_facial"
                         os.makedirs(pasta_local_temp, exist_ok=True)
                         
-                        query = f"'{folder_id}' in parents and mimeType = 'image/jpeg' and trashed = false"
-                        resultados_drive = drive_service.files().list(q=query, fields="files(id, name)", supportsAllDrives=True).execute()
-                        arquivos_drive = resultados_drive.get('files', [])
-                        
-                        if not arquivos_drive:
-                            st.error("❌ Base biométrica vazia no Google Drive.")
+                        # Limpa pasta temporária local antes de rodar
+                        for f_limpar in os.listdir(pasta_local_temp):
+                            if f_limpar.endswith('.jpg'): os.remove(os.path.join(pasta_local_temp, f_limpar))
+
+                        if df_biometria.empty or "Link_Gabarito" not in df_biometria.columns:
+                            st.error("❌ Nenhuma biometria cadastrada no sistema.")
                         else:
-                            for arquivo in arquivos_drive:
-                                caminho_local_foto = os.path.join(pasta_local_temp, arquivo['name'])
-                                if not os.path.exists(caminho_local_foto):
-                                    request_download = drive_service.files().get_media(fileId=arquivo['id'], supportsAllDrives=True)
-                                    fh = io.FileIO(caminho_local_foto, 'wb')
-                                    downloader = MediaIoBaseDownload(fh, request_download)
-                                    done = False
-                                    while not done:
-                                        status, done = downloader.next_chunk()
+                            # Faz o download temporário de cada imagem cadastrada no ImgBB
+                            for _, row in df_biometria.iterrows():
+                                url_gabarito = row["Link_Gabarito"]
+                                nome_arquivo = f"{row['Empresa']}.jpg"
+                                caminho_local_foto = os.path.join(pasta_local_temp, nome_arquivo)
+                                
+                                try:
+                                    res_foto = requests.get(url_gabarito)
+                                    if res_foto.status_code == 200:
+                                        with open(caminho_local_foto, "wb") as f_img:
+                                            f_img.write(res_foto.content)
+                                except:
+                                    pass
                             
+                            # Executa o algoritmo de comparação facial
                             lista_resultados = DeepFace.find(
                                 img_path = caminho_temp_captura,
                                 db_path = pasta_local_temp,
@@ -183,24 +176,20 @@ def check_password():
                                 nome_arquivo = os.path.basename(melhor_match['identity'])
                                 forn_detectado = os.path.splitext(nome_arquivo)[0]
                                 
-                                conn = st.connection("gsheets", type=GSheetsConnection)
                                 try: df_atual = conn.read(ttl=0)
                                 except: df_atual = pd.DataFrame()
                                 
                                 fuso_br = pytz.timezone('America/Sao_Paulo')
                                 agora_br = datetime.now(fuso_br)
                                 
-                                api_key = st.secrets["imgbb"]["api_key"]
-                                foto_base64 = base64.b64encode(foto_capturada.getvalue()).decode('utf-8')
-                                res_imgbb = requests.post("https://api.imgbb.com/1/upload", {"key": api_key, "image": foto_base64}).json()
-                                link_auditoria = res_imgbb['data']['url'] if res_imgbb['success'] else "Erro Link"
+                                link_auditoria = upload_para_imgbb(foto_capturada.getvalue()) or "Erro Link"
                                 
                                 novo_registro = pd.DataFrame([{
                                     "Data": agora_br.strftime("%d/%m/%Y %H:%M:%S"),
                                     "Loja": "RECONHECIMENTO_AUTOMATICO", 
                                     "Fornecedor": forn_detectado,
                                     "Frequencia": "FACIAL_PASSIVO_ZOOM", 
-                                    "Observacao": "[CHECK-IN ENQUADRAMENTO FORÇADO SUCESSO]",
+                                    "Observacao": "[CHECK-IN RECONHECIDO COM SUCESSO]",
                                     "Arquivo_Foto": link_auditoria, 
                                     "Usuario": "totem_biometrico"
                                 }])
@@ -208,13 +197,13 @@ def check_password():
                                 df_final = pd.concat([df_atual, novo_registro], ignore_index=True)
                                 conn.update(data=df_final)
                                 
-                                st.success(f"🎉 Enquadramento Perfeito e Reconhecido! Empresa: {forn_detectado}")
+                                st.success(f"🎉 Reconhecido com sucesso! Empresa: {forn_detectado}")
                                 st.balloons()
                                 time.sleep(3)
                                 st.session_state["tela_ativa"] = "menu_inicial"
                                 st.rerun()
                             else:
-                                st.error("❌ Rosto não reconhecido na base.")
+                                st.error("❌ Rosto não reconhecido na base biométrica.")
                                 
                     except Exception as e:
                         if "Face could not be detected" in str(e):
@@ -269,7 +258,7 @@ if check_password():
         
         if df_forn is not None:
             with st.expander("⚙️ CADASTRO BIOMÉTRICO", expanded=False):
-                st.caption("Registre novos rostos diretamente no Google Drive corporativo.")
+                st.caption("Registre novos rostos de forma segura via nuvem.")
                 lista_empresas_cadastro = sorted(df_forn[col_fornecedor].dropna().unique().tolist())
                 empresa_alvo = st.selectbox("1. Empresa:", ["Escolha..."] + lista_empresas_cadastro, key="sb_cad_sidebar")
                 
@@ -284,7 +273,7 @@ if check_password():
                         <div style="background-color:#1e222b; padding:10px; border-radius:5px; height:130px; overflow-y:scroll; font-size:11px; color:#bdc3c7; border:1px solid #34495e; margin-bottom:10px; line-height:1.4;">
                             <b>**TERMOS DE USO E PROTEÇÃO DE DADOS (LGPD)**</b><br><br>
                             Declaramos para os devidos fins legais, em conformidade com a Lei Geral de Proteção de Dados (LGPD), que a imagem capturada para este cadastro biométrico (gabarito) será utilizada estritamente para o registro interno de ponto e controle de acesso de promotores nas unidades Molicenter.<br><br>
-                            Os dados biométricos serão armazenados de forma segura em ambiente corporativo privado (Google Drive) e jamais serão compartilhados com terceiros sem consentimento explícito.
+                            Os dados biométricos serão armazenados de forma segura e jamais serão compartilhados com terceiros sem consentimento explícito.
                         </div>
                         """, 
                         unsafe_allow_html=True
@@ -295,12 +284,8 @@ if check_password():
                     
                     if st.button(f"Salvar Biometria", use_container_width=True, disabled=botao_desabilitado, key="btn_cad_sidebar"):
                         if foto_gabarito is not None:
-                            with st.spinner("Sincronizando Drive..."):
+                            with st.spinner("Processando e salvando biometria..."):
                                 try:
-                                    drive_service = obter_servico_drive()
-                                    folder_id = st.secrets["google_drive"]["folder_id"]
-                                    nome_arquivo_drive = f"{empresa_alvo}.jpg"
-                                    
                                     caminho_local_salvar = "upload_gabarito.jpg"
                                     with open(caminho_local_salvar, "wb") as f:
                                         f.write(foto_gabarito.getbuffer())
@@ -311,69 +296,46 @@ if check_password():
                                         st.error("❌ Nenhum rosto nítido encontrado. Refaça de perto.")
                                         if os.path.exists(caminho_local_salvar): os.remove(caminho_local_salvar)
                                         st.stop()
+                                    
+                                    # Faz o upload estável para o ImgBB (Independente de cotas do Drive)
+                                    url_gabarito_salvo = upload_para_imgbb(foto_gabarito.getvalue())
+                                    
+                                    if url_gabarito_salvo:
+                                        # Salva o metadado numa aba exclusiva do Google Sheets ("BIOMETRIA_GABARITOS")
+                                        try:
+                                            df_bio_atual = conn.read(worksheet="BIOMETRIA_GABARITOS", ttl=0)
+                                        except:
+                                            df_bio_atual = pd.DataFrame(columns=["Data_Cadastro", "Empresa", "Nome_Promotor", "Telefone", "Link_Gabarito"])
                                         
-                                    query_busca = f"'{folder_id}' in parents and name = '{nome_arquivo_drive}' and trashed = false"
-                                    existentes = drive_service.files().list(q=query_busca, fields="files(id)", supportsAllDrives=True).execute().get('files', [])
-                                    
-                                    metadata_arquivo = {'name': nome_arquivo_drive, 'parents': [folder_id]}
-                                    media = MediaFileUpload(caminho_local_salvar, mimetype='image/jpeg', resumable=False)
-                                    
-                                    # --- REALIZA O UPLOAD DO FICHEIRO ---
-                                    if existentes:
-                                        file_id = existentes[0]['id']
-                                        drive_service.files().update(
-                                            fileId=file_id, 
-                                            media_body=media,
-                                            supportsAllDrives=True
-                                        ).execute()
+                                        fuso_br = pytz.timezone('America/Sao_Paulo')
+                                        agora_br = datetime.now(fuso_br)
+                                        
+                                        # Se a empresa já existir, remove o gabarito antigo para atualizar
+                                        if not df_bio_atual.empty and "Empresa" in df_bio_atual.columns:
+                                            df_bio_atual = df_bio_atual[df_bio_atual["Empresa"] != empresa_alvo]
+                                        
+                                        novo_gabarito_row = pd.DataFrame([{
+                                            "Data_Cadastro": agora_br.strftime("%d/%m/%Y %H:%M:%S"),
+                                            "Empresa": empresa_alvo,
+                                            "Nome_Promotor": nome_digitado,
+                                            "Telefone": tel_opcional,
+                                            "Link_Gabarito": url_gabarito_salvo
+                                        }])
+                                        
+                                        df_bio_final = pd.concat([df_bio_atual, novo_gabarito_row], ignore_index=True)
+                                        conn.update(worksheet="BIOMETRIA_GABARITOS", data=df_bio_final)
+                                        
+                                        st.success(f"✅ Biometria de {nome_digitado} salva!")
+                                        if os.path.exists(caminho_local_salvar): os.remove(caminho_local_salvar)
+                                        time.sleep(1.5)
+                                        st.rerun()
                                     else:
-                                        arquivo_criado = drive_service.files().create(
-                                            body=metadata_arquivo, 
-                                            media_body=media, 
-                                            fields='id',
-                                            supportsAllDrives=True
-                                        ).execute()
-                                        file_id = arquivo_criado.get('id')
+                                        st.error("❌ Erro ao gerar link da imagem no ImgBB.")
                                         
-                                    # --- SOLUÇÃO CRUCIAL DA COTA: MOVE A PROPRIEDADE PARA O TEU EMAIL ---
-                                    meu_email_pessoal = "adriandormartins86@gmail.com"
-                                    permissao_proprietario = {
-                                        'type': 'user',
-                                        'role': 'owner',
-                                        'emailAddress': meu_email_pessoal
-                                    }
-                                    
-                                    # Transfere a posse do ficheiro (usa a tua cota de espaço pessoal em vez da cota zero da Service Account)
-                                    drive_service.permissions().create(
-                                        fileId=file_id,
-                                        body=permissao_proprietario,
-                                        transferOwnership=True,
-                                        supportsAllDrives=True
-                                    ).execute()
-                                        
-                                    st.success(f"✅ Salvo com sucesso!")
-                                    if os.path.exists(caminho_local_salvar): os.remove(caminho_local_salvar)
-                                    
-                                    pasta_local_temp = "temp_db_facial"
-                                    if os.path.exists(pasta_local_temp):
-                                        for f_limpar in os.listdir(pasta_local_temp): os.remove(os.path.join(pasta_local_temp, f_limpar))
-                                    time.sleep(1.5)
-                                    st.rerun()
                                 except Exception as err:
-                                    st.error(f"Erro Drive: {err}")
+                                    st.error(f"Erro no Processamento: {err}")
 
     # --- FLUXO DA TELA CENTRAL ---
-    def upload_para_imgbb(arquivo_foto):
-        try:
-            api_key = st.secrets["imgbb"]["api_key"]
-            url = "https://api.imgbb.com/1/upload"
-            foto_base64 = base64.b64encode(arquivo_foto.getvalue()).decode('utf-8')
-            payload = {"key": api_key, "image": foto_base64}
-            response = requests.post(url, payload)
-            res = response.json()
-            return res['data']['url'] if res['success'] else "Erro No Upload"
-        except: return "Erro No Upload"
-
     if df_forn is not None:
         fuso_br = pytz.timezone('America/Sao_Paulo')
         agora = datetime.now(fuso_br)
@@ -432,9 +394,9 @@ if check_password():
                     if st.button("Confirmar Registro", use_container_width=True):
                         try:
                             with st.spinner('🚀 Gravando com segurança...'):
-                                link_f = upload_para_imgbb(foto) if foto else "Sem foto"
+                                link_f = upload_para_imgbb(foto.getvalue()) if foto else "Sem foto"
                                 
-                                if link_f != "Erro No Upload":
+                                if link_f:
                                     try:
                                         df_atual = conn.read(ttl=0)
                                     except:

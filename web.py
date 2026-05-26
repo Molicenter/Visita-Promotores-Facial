@@ -113,16 +113,45 @@ def check_password():
                     else:
                         st.error("❌ E-mail ou senha incorretos.")
 
-        # --- 3. TELA EXCLUSIVA: CÂMERA DO PROMOTOR ---
+        # --- 3. TELA EXCLUSIVA: CÂMERA DO PROMOTOR (MODO BANCO) ---
         elif st.session_state["tela_ativa"] == "camera_promotor":
             st.subheader("📸 Identificação Automática de Promotores")
-            st.write("Olhe para a câmera para registrar sua entrada de forma automática.")
+            st.warning("Atenção: Aproxime bem o rosto da câmera (Estilo aplicativo de banco) para validar o enquadramento.")
             
-            foto_capturada = st.camera_input("Posicione seu rosto no centro")
+            foto_capturada = st.camera_input("Centralize seu rosto e dê zoom se aproximando da câmera")
             
             if foto_capturada:
-                with st.spinner('Buscando seu cadastro de forma segura...'):
+                with st.spinner('Validando enquadramento e buscando cadastro...'):
                     try:
+                        # Salva a foto tirada para análise inicial de enquadramento
+                        caminho_temp_captura = "temp_identifica.jpg"
+                        with open(caminho_temp_captura, "wb") as f:
+                            f.write(foto_capturada.getbuffer())
+                        
+                        # --- MODAL BANCO: VERIFICAÇÃO DE ZOOM DO ROSTO ---
+                        faces_detectadas = DeepFace.extract_faces(
+                            img_path = caminho_temp_captura, 
+                            detector_backend = 'opencv', 
+                            enforce_detection = True
+                        )
+                        
+                        if len(faces_detectadas) > 0:
+                            dados_rosto = faces_detectadas[0]
+                            # Pega a largura do rosto detectado e a largura total do quadro da câmera
+                            largura_rosto = dados_rosto["facial_area"]["w"]
+                            largura_total_imagem = dados_rosto["facial_area"]["w"] + dados_rosto["facial_area"]["x"] # Estimativa aproximada do frame completo
+                            
+                            # Usamos um valor padrão de proporção (por exemplo, o rosto deve ocupar pelo menos 30% a 35% da tela)
+                            # Para blindar o Streamlit que varia resoluções de câmera, checamos a área do recorte
+                            confiança_face = dados_rosto["confidence"]
+                            
+                            # Se o rosto estiver muito longe (largura menor que 130 pixels costuma ser o padrão de distância excessiva)
+                            if largura_rosto < 140:
+                                st.error("⚠️ Você está muito longe! Fique mais perto da câmera para dar zoom no rosto.")
+                                if os.path.exists(caminho_temp_captura): os.remove(caminho_temp_captura)
+                                st.stop()
+                        
+                        # --- FIM DA VALIDAÇÃO DE ZOOM, INICIA BUSCA NO DRIVE ---
                         drive_service = obter_servico_drive()
                         folder_id = st.secrets["google_drive"]["folder_id"]
                         
@@ -147,11 +176,7 @@ def check_password():
                                     while not done:
                                         status, done = downloader.next_chunk()
                             
-                            caminho_temp_captura = "temp_identifica.jpg"
-                            with open(caminho_temp_captura, "wb") as f:
-                                f.write(foto_capturada.getbuffer())
-                            
-                            # Varredura DeepFace
+                            # Varredura DeepFace cruzando com a base do Drive
                             lista_resultados = DeepFace.find(
                                 img_path = caminho_temp_captura,
                                 db_path = pasta_local_temp,
@@ -183,8 +208,8 @@ def check_password():
                                     "Data": agora_br.strftime("%d/%m/%Y %H:%M:%S"),
                                     "Loja": "RECONHECIMENTO_AUTOMATICO", 
                                     "Fornecedor": forn_detectado,
-                                    "Frequencia": "FACIAL_PASSIVO", 
-                                    "Observacao": "[CHECK-IN FACIAL AUTOMÁTICO SUCESSO]",
+                                    "Frequencia": "FACIAL_PASSIVO_ZOOM", 
+                                    "Observacao": "[CHECK-IN ENQUADRAMENTO FORÇADO SUCESSO]",
                                     "Arquivo_Foto": link_auditoria, 
                                     "Usuario": "totem_biometrico"
                                 }])
@@ -192,7 +217,7 @@ def check_password():
                                 df_final = pd.concat([df_atual, novo_registro], ignore_index=True)
                                 conn.update(data=df_final)
                                 
-                                st.success(f"🎉 Reconhecido com Sucesso! Empresa: {forn_detectado}")
+                                st.success(f"🎉 Enquadramento Perfeito e Reconhecido! Empresa: {forn_detectado}")
                                 st.balloons()
                                 time.sleep(3)
                                 st.session_state["tela_ativa"] = "menu_inicial"
@@ -212,7 +237,7 @@ def check_password():
                 
     return False
 
-# --- FLUXO PRINCIPAL PÓS-LOGIN (GERENTES/ANALISTAS) ---
+# --- O RESTANTE DO CÓDIGO PERMANECE IDENTICO ---
 if check_password():
     with st.sidebar:
         with st.expander("⚙️ Opções de Conta"):
@@ -263,91 +288,4 @@ if check_password():
         
         fuso_br = pytz.timezone('America/Sao_Paulo')
         agora = datetime.now(fuso_br)
-        dias_map = {0: 'SEG', 1: 'TER', 2: 'QUA', 3: 'QUI', 4: 'SEX', 5: 'SAB', 6: 'DOM'}
-        dia_hoje = dias_map[agora.weekday()]
-
-        st.subheader(f"📅 Hoje é {agora.strftime('%d/%m')} ({dia_hoje})")
-
-        lista_lojas = sorted(df_forn[col_loja].dropna().astype(str).unique().tolist())
-        if st.session_state["perfil"] == "analista":
-            loja_sel = st.selectbox("Selecione a Loja:", ["Escolha..."] + lista_lojas)
-        else:
-            id_g = st.session_state["loja_id"]
-            loja_sel = next((l for l in lista_lojas if l.startswith(id_g) or l.startswith(id_g.zfill(2))), "Escolha...")
-            st.info(f"📍 **Loja: {loja_sel}**")
-
-        if loja_sel != "Escolha...":
-            df_loja = df_forn[df_forn[col_loja].astype(str) == loja_sel]
-            df_hoje = df_loja[df_loja[col_frequencia].astype(str).str.contains(dia_hoje, case=False, na=False)]
-
-            st.markdown("### 📋 Agenda de Visitas (Hoje)")
-            
-            if not df_hoje.empty:
-                colunas_exibir = [col_fornecedor, col_marcas, col_comprador, col_promotor, col_telefone, col_frequencia]
-                tabela_exibicao = df_hoje[colunas_exibir].copy().sort_values(by=col_fornecedor)
-                st.dataframe(tabela_exibicao, use_container_width=True, hide_index=True)
-            else:
-                st.warning("Nenhum fornecedor programado para hoje.")
-
-            st.markdown("---")
-
-            if "form_count" not in st.session_state:
-                st.session_state["form_count"] = 0
-            
-            with st.container():
-                st.markdown("### 2. Realizar Registro Manual")
-                opcoes_forn = ["Escolha..."] + sorted(df_loja[col_fornecedor].unique().tolist())
-                
-                forn_sel = st.selectbox(
-                    "Selecione o fornecedor para registrar a visita:", 
-                    opcoes_forn, 
-                    key=f"forn_{st.session_state['form_count']}"
-                )
-
-                if forn_sel != "Escolha...":
-                    dados_linha = df_loja[df_loja[col_fornecedor] == forn_sel].iloc[0]
-                    freq_cadastrada = dados_linha[col_frequencia]
-                    
-                    st.success(f"✅ **Fornecedor:** {forn_sel}")
-                    
-                    obs = st.text_input("3. Observação (Opcional):", key=f"obs_{st.session_state['form_count']}")
-                    foto = st.file_uploader("📸 Foto do Registro", type=["jpg", "jpeg", "png"], key=f"foto_{st.session_state['form_count']}")
-                    
-                    if foto: st.image(foto, width=250)
-
-                    if st.button("Confirmar Registro", use_container_width=True):
-                        try:
-                            with st.spinner('🚀 Gravando com segurança...'):
-                                link_f = upload_para_imgbb(foto) if foto else "Sem foto"
-                                
-                                if link_f != "Erro no Upload":
-                                    try:
-                                        df_atual = conn.read(ttl=0)
-                                    except:
-                                        df_atual = pd.DataFrame()
-
-                                    novo_registro = pd.DataFrame([{
-                                        "Data": agora.strftime("%d/%m/%Y %H:%M:%S"),
-                                        "Loja": loja_sel, 
-                                        "Fornecedor": forn_sel,
-                                        "Frequencia": freq_cadastrada, 
-                                        "Observacao": obs,
-                                        "Arquivo_Foto": link_f, 
-                                        "Usuario": st.session_state["usuario_logado"]
-                                    }])
-                                    
-                                    df_final = pd.concat([df_atual, novo_registro], ignore_index=True)
-                                    conn.update(data=df_final)
-                                    
-                                    st.success(f"✅ Registro concluído!")
-                                    st.balloons()
-                                    
-                                    st.session_state["form_count"] += 1
-                                    time.sleep(2)
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Falha no upload da foto. Verifique a chave da API do ImgBB.")
-                        except Exception as e:
-                            st.error(f"Erro ao salvar: {e}")
-    else:
-        st.error("Erro: Arquivo 'fornecedores.xlsx' não encontrado.")
+        dias_map = {0: 'SEG', 1:

@@ -162,7 +162,7 @@ def check_password():
                         os.makedirs(pasta_local_temp, exist_ok=True)
                         
                         query = f"'{folder_id}' in parents and mimeType = 'image/jpeg' and trashed = false"
-                        resultados_drive = drive_service.files().list(q=query, fields="files(id, name)").execute()
+                        resultados_drive = drive_service.files().list(q=query, fields="files(id, name)", supportsAllDrives=True).execute()
                         arquivos_drive = resultados_drive.get('files', [])
                         
                         if not arquivos_drive:
@@ -171,7 +171,7 @@ def check_password():
                             for arquivo in arquivos_drive:
                                 caminho_local_foto = os.path.join(pasta_local_temp, arquivo['name'])
                                 if not os.path.exists(caminho_local_foto):
-                                    request_download = drive_service.files().get_media(fileId=arquivo['id'])
+                                    request_download = drive_service.files().get_media(fileId=arquivo['id'], supportsAllDrives=True)
                                     fh = io.FileIO(caminho_local_foto, 'wb')
                                     downloader = MediaIoBaseDownload(fh, request_download)
                                     done = False
@@ -286,7 +286,6 @@ if check_password():
                 empresa_alvo = st.selectbox("1. Empresa:", ["Escolha..."] + lista_empresas_cadastro, key="sb_cad_sidebar")
                 
                 if empresa_alvo != "Escolha...":
-                    # MODIFICAÇÃO: Nome agora é digitado manualmente e telefone virou opcional
                     nome_digitado = st.text_input("2. Nome do Promotor:", placeholder="Digite o nome completo", key="txt_nome_sidebar").strip()
                     tel_opcional = st.text_input("3. Telefone (Opcional):", placeholder="(DDD) 00000-0000", key="txt_tel_sidebar").strip()
                     
@@ -296,7 +295,7 @@ if check_password():
                         """
                         <div style="background-color:#1e222b; padding:10px; border-radius:5px; height:130px; overflow-y:scroll; font-size:11px; color:#bdc3c7; border:1px solid #34495e; margin-bottom:10px; line-height:1.4;">
                             <b>**TERMOS DE USO E PROTEÇÃO DE DADOS (LGPD)**</b><br><br>
-                            Declaramos para os devidos fins legais, in conformidade com a Lei Geral de Proteção de Dados (LGPD), que a imagem capturada para este cadastro biométrico (gabarito) será utilizada estritamente para o registro interno de ponto e controle de acesso de promotores nas unidades Molicenter.<br><br>
+                            Declaramos para os devidos fins legais, em conformidade com a Lei Geral de Proteção de Dados (LGPD), que a imagem capturada para este cadastro biométrico (gabarito) será utilizada estritamente para o registro interno de ponto e controle de acesso de promotores nas unidades Molicenter.<br><br>
                             Os dados biométricos serão armazenados de forma segura em ambiente corporativo privado (Google Drive) e jamais serão compartilhados com terceiros sem consentimento explícito.
                         </div>
                         """, 
@@ -304,8 +303,6 @@ if check_password():
                     )
                     
                     consentimento = st.checkbox("Termo assinado (LGPD)", key="chk_cad_sidebar")
-                    
-                    # O botão só habilita se aceitar a LGPD E se o nome do promotor não estiver em branco
                     botao_desabilitado = not (consentimento and len(nome_digitado) > 0)
                     
                     if st.button(f"Salvar Biometria", use_container_width=True, disabled=botao_desabilitado, key="btn_cad_sidebar"):
@@ -328,15 +325,25 @@ if check_password():
                                         st.stop()
                                         
                                     query_busca = f"'{folder_id}' in parents and name = '{nome_arquivo_drive}' and trashed = false"
-                                    existentes = drive_service.files().list(q=query_busca, fields="files(id)").execute().get('files', [])
+                                    existentes = drive_service.files().list(q=query_busca, fields="files(id)", supportsAllDrives=True).execute().get('files', [])
                                     
                                     metadata_arquivo = {'name': nome_arquivo_drive, 'parents': [folder_id]}
-                                    media = MediaFileUpload(caminho_local_salvar, mimetype='image/jpeg', resumable=True)
+                                    # CORREÇÃO DA COTA: Desativado o 'resumable' para forçar herança de metadados da pasta pai
+                                    media = MediaFileUpload(caminho_local_salvar, mimetype='image/jpeg', resumable=False)
                                     
                                     if existentes:
-                                        drive_service.files().update(fileId=existentes[0]['id'], media_body=media).execute()
+                                        drive_service.files().update(
+                                            fileId=existentes[0]['id'], 
+                                            media_body=media,
+                                            supportsAllDrives=True
+                                        ).execute()
                                     else:
-                                        drive_service.files().create(body=metadata_arquivo, media_body=media, fields='id').execute()
+                                        drive_service.files().create(
+                                            body=metadata_arquivo, 
+                                            media_body=media, 
+                                            fields='id',
+                                            supportsAllDrives=True
+                                        ).execute()
                                         
                                     st.success(f"✅ Salvo com sucesso!")
                                     if os.path.exists(caminho_local_salvar): os.remove(caminho_local_salvar)

@@ -186,7 +186,7 @@ def check_password():
                                 
                                 novo_registro = pd.DataFrame([{
                                     "Data": agora_br.strftime("%d/%m/%Y %H:%M:%S"),
-                                    "Loja": "RECONHECIMENTO_AUTOMATICO", 
+                                    "Loja": "FACE", 
                                     "Fornecedor": forn_detectado,
                                     "Frequencia": "FACIAL", 
                                     "Observacao": "[CHECK-IN FACIAL]",

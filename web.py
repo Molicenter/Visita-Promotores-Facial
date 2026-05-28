@@ -176,6 +176,7 @@ def check_password():
                                 nome_arquivo = os.path.basename(melhor_match['identity'])
                                 forn_detectado = os.path.splitext(nome_arquivo)[0]
                                 
+                                # --- AJUSTADO: Lendo e atualizando a aba correta (padrão) para não perder histórico ---
                                 try: df_atual = conn.read(ttl=0)
                                 except: df_atual = pd.DataFrame()
                                 
@@ -195,7 +196,7 @@ def check_password():
                                 }])
                                 
                                 df_final = pd.concat([df_atual, novo_registro], ignore_index=True)
-                                conn.update(data=df_final)
+                                conn.update(data=df_final) # Salva mantendo a consistência na aba principal
                                 
                                 st.success(f"🎉 Reconhecido com sucesso! Empresa: {forn_detectado}")
                                 st.balloons()

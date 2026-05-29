@@ -274,7 +274,8 @@ if check_password():
                         <div style="background-color:#1e222b; padding:10px; border-radius:5px; height:130px; overflow-y:scroll; font-size:11px; color:#bdc3c7; border:1px solid #34495e; margin-bottom:10px; line-height:1.4;">
                             <b>**TERMOS DE USO E PROTEÇÃO DE DADOS (LGPD)**</b><br><br>
                             Declaramos para os devidos fins legais, em conformidade com a Lei Geral de Proteção de Dados (LGPD), que a imagem capturada para este cadastro biométrico (gabarito) será utilizada estritamente para o registro interno de ponto e controle de acesso de promotores nas unidades Molicenter.<br><br>
-                            Os dados biométricos serão armazenados de forma segura e jamais serão compartilhados com terceiros sem consentimento explícito.
+                            Os dados biométricos serão armazenados de forma segura e jamais serão compartilhados com terceiros sem consentimento explícito.<br><br>
+                            Declaro ciência e autorizo o uso da minha imagem.
                         </div>
                         """, 
                         unsafe_allow_html=True

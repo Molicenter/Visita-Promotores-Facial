@@ -1,5 +1,2 @@
-libgl1-mesa-dri
-freeglut3-dev
-libgl1-mesa-dev
-libgl1-mesa-glx
+libgl1
 libglib2.0-0

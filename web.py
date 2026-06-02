@@ -13,14 +13,13 @@ import io
 
 # --- CONFIGURAÇÃO E LOGO ---
 USER_GITHUB = "adrianormartins86-lab"
-# ⚠️ ADICIONE AQUI O NOME DO SEU NOVO REPOSITÓRIO DO GITHUB:
-REPO_GITHUB = "NOME_DO_SEU_NOVO_REPOSITORIO" 
+REPO_GITHUB = "Visita-Promotores-Facial"  # Ajustado para o repositório atual
 NOME_IMAGEM = "passaro_logo.png"
 URL_ICONE = f"https://raw.githubusercontent.com/{USER_GITHUB}/{REPO_GITHUB}/main/{NOME_IMAGEM}"
 
 # Tratamento para evitar que o app quebre caso a imagem suma da nuvem novamente
 try:
-    res_logo = requests.head(URL_ICONE)
+    res_logo = requests.head(URL_ICONE, timeout=3)
     if res_logo.status_code != 200:
         page_icon_fallback = "🐦"
     else:
@@ -164,7 +163,7 @@ def check_password():
                                 caminho_local_foto = os.path.join(pasta_local_temp, nome_arquivo)
                                 
                                 try:
-                                    res_foto = requests.get(url_gabarito)
+                                    res_foto = requests.get(url_gabarito, timeout=10)
                                     if res_foto.status_code == 200:
                                         with open(caminho_local_foto, "wb") as f_img:
                                             f_img.write(res_foto.content)

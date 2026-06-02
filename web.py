@@ -13,14 +13,25 @@ import io
 
 # --- CONFIGURAÇÃO E LOGO ---
 USER_GITHUB = "adrianormartins86-lab"
-REPO_GITHUB = "Python"
+# ⚠️ ADICIONE AQUI O NOME DO SEU NOVO REPOSITÓRIO DO GITHUB:
+REPO_GITHUB = "NOME_DO_SEU_NOVO_REPOSITORIO" 
 NOME_IMAGEM = "passaro_logo.png"
 URL_ICONE = f"https://raw.githubusercontent.com/{USER_GITHUB}/{REPO_GITHUB}/main/{NOME_IMAGEM}"
+
+# Tratamento para evitar que o app quebre caso a imagem suma da nuvem novamente
+try:
+    res_logo = requests.head(URL_ICONE)
+    if res_logo.status_code != 200:
+        page_icon_fallback = "🐦"
+    else:
+        page_icon_fallback = URL_ICONE
+except:
+    page_icon_fallback = "🐦"
 
 st.set_page_config(
     page_title="Registro Promotores", 
     layout="wide", 
-    page_icon=URL_ICONE,
+    page_icon=page_icon_fallback,
     initial_sidebar_state="collapsed"
 )
 

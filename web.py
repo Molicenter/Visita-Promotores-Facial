@@ -13,11 +13,10 @@ import io
 
 # --- CONFIGURAÇÃO E LOGO ---
 USER_GITHUB = "adrianormartins86-lab"
-REPO_GITHUB = "Visita-Promotores-Facial"  # Ajustado para o repositório atual
+REPO_GITHUB = "Visita-Promotores-Facial"
 NOME_IMAGEM = "passaro_logo.png"
 URL_ICONE = f"https://raw.githubusercontent.com/{USER_GITHUB}/{REPO_GITHUB}/main/{NOME_IMAGEM}"
 
-# Tratamento para evitar que o app quebre caso a imagem suma da nuvem novamente
 try:
     res_logo = requests.head(URL_ICONE, timeout=3)
     if res_logo.status_code != 200:
@@ -34,13 +33,13 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- INJEÇÃO DE CSS MODERNO ---
+# --- INJEÇÃO DE CSS OTIMIZADO PARA MOBILE E DESKTOP ---
 def injetar_css_moderno():
     st.markdown("""
     <style>
-    /* Container principal estilo 'Card' */
+    /* Container principal estilo 'Card' (Login) */
     .login-card {
-        background-color: #1E212B; /* Fundo escuro levemente contrastante */
+        background-color: #1E212B; 
         padding: 2.5rem 2rem;
         border-radius: 16px;
         box-shadow: 0 10px 25px rgba(0,0,0,0.4);
@@ -63,6 +62,7 @@ def injetar_css_moderno():
         text-transform: uppercase;
         letter-spacing: 1.5px;
     }
+    
     /* Efeito de elevação nos botões Streamlit */
     div.stButton > button {
         border-radius: 10px;
@@ -74,6 +74,7 @@ def injetar_css_moderno():
         transform: translateY(-2px);
         box-shadow: 0 5px 15px rgba(0,0,0,0.2);
     }
+    
     /* Inputs mais elegantes */
     div.stTextInput input {
         border-radius: 8px;
@@ -82,6 +83,68 @@ def injetar_css_moderno():
     div.stTextInput input:focus {
         border-color: #ff4b4b;
         box-shadow: 0 0 0 1px #ff4b4b;
+    }
+
+    /* Estilização dos Cards de KPI (Painel) */
+    .kpi-container {
+        display: flex;
+        flex-wrap: wrap; /* ESSENCIAL PARA MOBILE: Empilha se faltar espaço */
+        gap: 15px;
+        margin-bottom: 25px;
+    }
+    .kpi-card {
+        background-color: #1E212B;
+        border-left: 4px solid #ff4b4b;
+        padding: 20px;
+        border-radius: 10px;
+        flex: 1 1 200px; /* Cresce, encolhe e tem tamanho base de 200px */
+        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+    }
+    .kpi-title {
+        color: #94A3B8;
+        font-size: 13px;
+        font-weight: 600;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+    }
+    .kpi-value {
+        color: #FFFFFF;
+        font-size: 24px;
+        font-weight: bold;
+    }
+    
+    /* Tabela otimizada */
+    [data-testid="stDataFrame"] {
+        border: 1px solid #2D323E;
+        border-radius: 10px;
+        overflow: hidden;
+    }
+    
+    /* Títulos de seção elegantes */
+    .section-header {
+        color: #E2E8F0;
+        font-size: 18px;
+        font-weight: 600;
+        border-bottom: 1px solid #2D323E;
+        padding-bottom: 10px;
+        margin-top: 30px;
+        margin-bottom: 20px;
+    }
+
+    /* --- MEDIA QUERIES PARA CELULAR --- */
+    @media (max-width: 600px) {
+        .login-card {
+            padding: 1.5rem 1rem; /* Menos margem interna no celular */
+        }
+        .app-title {
+            font-size: 22px; /* Texto menor no celular */
+        }
+        .kpi-card {
+            padding: 15px;
+        }
+        .kpi-value {
+            font-size: 20px;
+        }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -99,7 +162,7 @@ def upload_para_imgbb(arquivo_bytes):
     except:
         return None
 
-# --- SISTEMA DE LOGIN COM SELEÇÃO DE FLUXO ---
+# --- SISTEMA DE LOGIN ---
 def check_password():
     if "authenticated" not in st.session_state:
         st.session_state["authenticated"] = False
@@ -109,16 +172,13 @@ def check_password():
     if st.session_state["authenticated"]:
         return True
 
-    # Aplica o CSS customizado
     injetar_css_moderno()
 
     col1, col2, col3 = st.columns([1, 1.2, 1])
     
     with col2:
-        # Tratamento seguro para a logo dentro do HTML
         logo_html = f'<img src="{URL_ICONE}" width="95" style="filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3));">' if page_icon_fallback != "🐦" else '<div style="font-size: 60px; margin-bottom: 10px;">🐦</div>'
         
-        # Cabeçalho encapsulado no Card CSS
         st.markdown(f"""
         <div class="login-card">
             {logo_html}
@@ -207,7 +267,6 @@ def check_password():
                                 if os.path.exists(caminho_temp_captura): os.remove(caminho_temp_captura)
                                 st.stop()
                         
-                        # --- DOWNLOAD DOS GABARITOS BIOMÉTRICOS VIA PLANILHA ---
                         conn = st.connection("gsheets", type=GSheetsConnection)
                         try:
                             df_biometria = conn.read(worksheet="BIOMETRIA_GABARITOS", ttl=0)
@@ -293,7 +352,9 @@ def check_password():
                 
     return False
 
+# --- LÓGICA PRINCIPAL DA APLICAÇÃO ---
 if check_password():
+    injetar_css_moderno() # Garante que o CSS esteja carregado no painel também
     conn = st.connection("gsheets", type=GSheetsConnection)
 
     @st.cache_data
@@ -374,11 +435,9 @@ if check_password():
                                         if os.path.exists(caminho_local_salvar): os.remove(caminho_local_salvar)
                                         st.stop()
                                     
-                                    # Faz o upload estável para o ImgBB (Independente de cotas do Drive)
                                     url_gabarito_salvo = upload_para_imgbb(foto_gabarito.getvalue())
                                     
                                     if url_gabarito_salvo:
-                                        # Salva o metadado numa aba exclusiva do Google Sheets ("BIOMETRIA_GABARITOS")
                                         try:
                                             df_bio_atual = conn.read(worksheet="BIOMETRIA_GABARITOS", ttl=0)
                                         except:
@@ -387,7 +446,6 @@ if check_password():
                                         fuso_br = pytz.timezone('America/Sao_Paulo')
                                         agora_br = datetime.now(fuso_br)
                                         
-                                        # Se a empresa já existir, remove o gabarito antigo para atualizar
                                         if not df_bio_atual.empty and "Empresa" in df_bio_atual.columns:
                                             df_bio_atual = df_bio_atual[df_bio_atual["Empresa"] != empresa_alvo]
                                         
@@ -412,14 +470,12 @@ if check_password():
                                 except Exception as err:
                                     st.error(f"Erro no Processamento: {err}")
 
-    # --- FLUXO DA TELA CENTRAL ---
+    # --- FLUXO DA TELA CENTRAL (PAINEL E REGISTRO) ---
     if df_forn is not None:
         fuso_br = pytz.timezone('America/Sao_Paulo')
         agora = datetime.now(fuso_br)
         dias_map = {0: 'SEG', 1: 'TER', 2: 'QUA', 3: 'QUI', 4: 'SEX', 5: 'SAB', 6: 'DOM'}
         dia_hoje = dias_map[agora.weekday()]
-
-        st.subheader(f"📅 Hoje é {agora.strftime('%d/%m')} ({dia_hoje})")
 
         lista_lojas = sorted(df_forn[col_loja].dropna().astype(str).unique().tolist())
         if st.session_state.get("perfil") == "analista":
@@ -427,32 +483,55 @@ if check_password():
         else:
             id_g = st.session_state.get("loja_id", "")
             loja_sel = next((l for l in lista_lojas if l.startswith(id_g) or l.startswith(id_g.zfill(2))), "Escolha...")
-            st.info(f"📍 **Loja: {loja_sel}**")
+            st.info(f"📍 **Loja Autenticada: {loja_sel}**")
 
+        # Define df_hoje para evitar erros na contagem do KPI
+        df_hoje = pd.DataFrame()
         if loja_sel != "Escolha...":
             df_loja = df_forn[df_forn[col_loja].astype(str) == loja_sel]
             df_hoje = df_loja[df_loja[col_frequencia].astype(str).str.contains(dia_hoje, case=False, na=False)]
 
-            st.markdown("### 📋 Agenda de Visitas (Hoje)")
+        total_fornecedores = len(df_hoje)
+
+        # --- CABEÇALHO KPI (GLASSMORPHISM/CARDS) ---
+        st.markdown(f"""
+        <div class="kpi-container">
+            <div class="kpi-card">
+                <div class="kpi-title">📅 Data Atual</div>
+                <div class="kpi-value">{agora.strftime('%d/%m')} ({dia_hoje})</div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-title">📍 Loja Selecionada</div>
+                <div class="kpi-value">{loja_sel if loja_sel != 'Escolha...' else 'Aguardando...'}</div>
+            </div>
+            <div class="kpi-card" style="border-left-color: #10B981;">
+                <div class="kpi-title">👥 Visitas Hoje</div>
+                <div class="kpi-value">{total_fornecedores} Promotores</div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        if loja_sel != "Escolha...":
+            
+            st.markdown('<div class="section-header">📋 Agenda de Visitas (Hoje)</div>', unsafe_allow_html=True)
             
             if not df_hoje.empty:
                 colunas_exibir = [col_fornecedor, col_marcas, col_comprador, col_promotor, col_telefone, col_frequencia]
                 tabela_exibicao = df_hoje[colunas_exibir].copy().sort_values(by=col_fornecedor)
+                # No celular, o Streamlit permite rolar a tabela horizontalmente se ela não couber
                 st.dataframe(tabela_exibicao, use_container_width=True, hide_index=True)
             else:
                 st.warning("Nenhum fornecedor programado para hoje.")
-
-            st.markdown("---")
 
             if "form_count" not in st.session_state:
                 st.session_state["form_count"] = 0
             
             with st.container():
-                st.markdown("### 2. Realizar Registro Manual")
+                st.markdown('<div class="section-header">✍️ Realizar Registro Manual</div>', unsafe_allow_html=True)
                 opcoes_forn = ["Escolha..."] + sorted(df_loja[col_fornecedor].unique().tolist())
                 
                 forn_sel = st.selectbox(
-                    "Selecione o fornecedor para registrar a visita:", 
+                    "1. Selecione o fornecedor para o check-in:", 
                     opcoes_forn, 
                     key=f"forn_{st.session_state['form_count']}"
                 )
@@ -461,19 +540,21 @@ if check_password():
                     dados_linha = df_loja[df_loja[col_fornecedor] == forn_sel].iloc[0]
                     freq_cadastrada = dados_linha[col_frequencia]
                     
-                    st.success(f"✅ **Fornecedor:** {forn_sel}")
+                    st.success(f"✅ **Selecionado:** {forn_sel}")
                     
-                    obs = st.text_input("3. Observação (Opcional):", key=f"obs_{st.session_state['form_count']}")
-                    foto = st.file_uploader("📸 Foto do Registro", type=["jpg", "jpeg", "png"], key=f"foto_{st.session_state['form_count']}")
+                    obs = st.text_input("2. Observação (Opcional):", placeholder="Ex: Produto em falta, prateleira organizada...", key=f"obs_{st.session_state['form_count']}")
+                    foto = st.file_uploader("3. 📸 Foto do Registro (Opcional)", type=["jpg", "jpeg", "png"], key=f"foto_{st.session_state['form_count']}")
                     
                     if foto: st.image(foto, width=250)
 
-                    if st.button("Confirmar Registro", use_container_width=True):
+                    st.write("") # Espaçamento para o botão não ficar colado
+                    
+                    if st.button("Confirmar Registro Manual", use_container_width=True, type="primary"):
                         try:
                             with st.spinner('🚀 Gravando com segurança...'):
                                 link_f = upload_para_imgbb(foto.getvalue()) if foto else "Sem foto"
                                 
-                                if link_f:
+                                if link_f or not foto: # Aceita se não tiver foto ou se a foto fez upload
                                     try:
                                         df_atual = conn.read(ttl=0)
                                     except:
@@ -492,7 +573,7 @@ if check_password():
                                     df_final = pd.concat([df_atual, novo_registro], ignore_index=True)
                                     conn.update(data=df_final)
                                     
-                                    st.success(f"✅ Registro concluído!")
+                                    st.success(f"✅ Registro concluído com sucesso!")
                                     st.balloons()
                                     
                                     st.session_state["form_count"] += 1

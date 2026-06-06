@@ -34,6 +34,58 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- INJEÇÃO DE CSS MODERNO ---
+def injetar_css_moderno():
+    st.markdown("""
+    <style>
+    /* Container principal estilo 'Card' */
+    .login-card {
+        background-color: #1E212B; /* Fundo escuro levemente contrastante */
+        padding: 2.5rem 2rem;
+        border-radius: 16px;
+        box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        text-align: center;
+        margin-bottom: 1.5rem;
+        border: 1px solid #2D323E;
+    }
+    .app-title {
+        color: #FFFFFF;
+        font-size: 28px;
+        font-weight: 800;
+        margin: 15px 0 5px 0;
+        font-family: 'Inter', -apple-system, sans-serif;
+        letter-spacing: -0.5px;
+    }
+    .app-subtitle {
+        color: #94A3B8;
+        font-size: 14px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+    }
+    /* Efeito de elevação nos botões Streamlit */
+    div.stButton > button {
+        border-radius: 10px;
+        font-weight: 600;
+        padding: 0.5rem 1rem;
+        transition: all 0.2s ease;
+    }
+    div.stButton > button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+    }
+    /* Inputs mais elegantes */
+    div.stTextInput input {
+        border-radius: 8px;
+        border: 1px solid #334155;
+    }
+    div.stTextInput input:focus {
+        border-color: #ff4b4b;
+        box-shadow: 0 0 0 1px #ff4b4b;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 # --- FUNÇÃO AUXILIAR DE UPLOAD IMGBB ---
 def upload_para_imgbb(arquivo_bytes):
     try:
@@ -57,28 +109,44 @@ def check_password():
     if st.session_state["authenticated"]:
         return True
 
-    col1, col2, col3 = st.columns([1,2,1])
+    # Aplica o CSS customizado
+    injetar_css_moderno()
+
+    col1, col2, col3 = st.columns([1, 1.2, 1])
+    
     with col2:
-        try: st.image(URL_ICONE, width=100)
-        except: st.write("🐦")
-        st.title("Supermercado Molicenter")
-        st.write("Gerenciamento Promotores")
-        st.markdown("---")
+        # Tratamento seguro para a logo dentro do HTML
+        logo_html = f'<img src="{URL_ICONE}" width="95" style="filter: drop-shadow(0px 4px 6px rgba(0,0,0,0.3));">' if page_icon_fallback != "🐦" else '<div style="font-size: 60px; margin-bottom: 10px;">🐦</div>'
+        
+        # Cabeçalho encapsulado no Card CSS
+        st.markdown(f"""
+        <div class="login-card">
+            {logo_html}
+            <div class="app-title">Supermercado Molicenter</div>
+            <div class="app-subtitle">Gerenciamento Promotores</div>
+        </div>
+        """, unsafe_allow_html=True)
 
         if st.session_state["tela_ativa"] == "menu_inicial":
-            st.write("### Perfil de acesso:")
+            st.markdown("<p style='text-align: center; color: #CBD5E1; font-size: 16px; margin-bottom: 15px; font-weight: 500;'>Selecione seu perfil de acesso:</p>", unsafe_allow_html=True)
+            
             if st.button("📷 SOU PROMOTOR (Validação Facial)", use_container_width=True, type="primary"):
                 st.session_state["tela_ativa"] = "camera_promotor"
                 st.rerun()
+            
             st.write("") 
+            
             if st.button("👤 SOU FUNCIONÁRIO (Login Administrativo)", use_container_width=True):
                 st.session_state["tela_ativa"] = "login_admin"
                 st.rerun()
 
         elif st.session_state["tela_ativa"] == "login_admin":
-            st.subheader("Login Administrativo")
+            st.markdown("<h3 style='text-align: center; color: #fff; margin-bottom: 20px;'>Login Administrativo</h3>", unsafe_allow_html=True)
+            
             email = st.text_input("E-mail", placeholder="seu_email@molicenter.com.br").lower().strip()
             senha = st.text_input("Senha", type="password")
+            
+            st.write("") 
             
             col_b1, col_b2 = st.columns(2)
             with col_b1:
@@ -103,13 +171,13 @@ def check_password():
                     st.rerun()
 
         elif st.session_state["tela_ativa"] == "camera_promotor":
-            st.subheader("📸 Identificação Automática de Promotores")
+            st.markdown("<h3 style='text-align: center; color: #fff; margin-bottom: 10px;'>📸 Validação Facial</h3>", unsafe_allow_html=True)
             st.markdown(
                 """
-                <div style="background-color:#0e1117; padding:15px; border:2px dashed #ff4b4b; border-radius:10px; text-align:center; margin-bottom:15px;">
-                    <h4 style="color:#ff4b4b; margin:0;">[ 🔲 ENQUADRAMENTO OBRIGATÓRIO ]</h4>
-                    <p style="color:#ffffff; margin:5px 0 0 0; font-size:14px;">
-                        Aproxime seu rosto da câmera até que ele ocupe <b>quase toda a área central</b>. Fotos de longe serão recusadas automaticamente.
+                <div style="background-color:#1E212B; padding:15px; border:2px dashed #ff4b4b; border-radius:10px; text-align:center; margin-bottom:20px;">
+                    <h4 style="color:#ff4b4b; margin:0; font-size: 16px;">[ ENQUADRAMENTO OBRIGATÓRIO ]</h4>
+                    <p style="color:#94A3B8; margin:8px 0 0 0; font-size:14px; line-height: 1.4;">
+                        Aproxime seu rosto da câmera até que ele ocupe <b>quase toda a área central</b>.<br>Fotos de longe serão recusadas automaticamente.
                     </p>
                 </div>
                 """, 
@@ -139,7 +207,7 @@ def check_password():
                                 if os.path.exists(caminho_temp_captura): os.remove(caminho_temp_captura)
                                 st.stop()
                         
-                        # --- DOWNLOAD DOS GABARITOS BIOMÉTRICOS VIA PLANILHA (SEM GOOGLE DRIVE) ---
+                        # --- DOWNLOAD DOS GABARITOS BIOMÉTRICOS VIA PLANILHA ---
                         conn = st.connection("gsheets", type=GSheetsConnection)
                         try:
                             df_biometria = conn.read(worksheet="BIOMETRIA_GABARITOS", ttl=0)
@@ -149,14 +217,12 @@ def check_password():
                         pasta_local_temp = "temp_db_facial"
                         os.makedirs(pasta_local_temp, exist_ok=True)
                         
-                        # Limpa pasta temporária local antes de rodar
                         for f_limpar in os.listdir(pasta_local_temp):
                             if f_limpar.endswith('.jpg'): os.remove(os.path.join(pasta_local_temp, f_limpar))
 
                         if df_biometria.empty or "Link_Gabarito" not in df_biometria.columns:
                             st.error("❌ Nenhuma biometria cadastrada no sistema.")
                         else:
-                            # Faz o download temporário de cada imagem cadastrada no ImgBB
                             for _, row in df_biometria.iterrows():
                                 url_gabarito = row["Link_Gabarito"]
                                 nome_arquivo = f"{row['Empresa']}.jpg"
@@ -170,7 +236,6 @@ def check_password():
                                 except:
                                     pass
                             
-                            # Executa o algoritmo de comparação facial
                             lista_resultados = DeepFace.find(
                                 img_path = caminho_temp_captura,
                                 db_path = pasta_local_temp,
@@ -186,7 +251,6 @@ def check_password():
                                 nome_arquivo = os.path.basename(melhor_match['identity'])
                                 forn_detectado = os.path.splitext(nome_arquivo)[0]
                                 
-                                # --- AJUSTADO: Lendo e atualizando a aba correta (padrão) para não perder histórico ---
                                 try: df_atual = conn.read(ttl=0)
                                 except: df_atual = pd.DataFrame()
                                 
@@ -206,7 +270,7 @@ def check_password():
                                 }])
                                 
                                 df_final = pd.concat([df_atual, novo_registro], ignore_index=True)
-                                conn.update(data=df_final) # Salva mantendo a consistência na aba principal
+                                conn.update(data=df_final) 
                                 
                                 st.success(f"🎉 Reconhecido com sucesso! Empresa: {forn_detectado}")
                                 st.balloons()
@@ -222,6 +286,7 @@ def check_password():
                         else:
                             st.error(f"Erro na análise: {e}")
             
+            st.write("")
             if st.button("⬅️ Voltar para o Menu Inicial", use_container_width=True):
                 st.session_state["tela_ativa"] = "menu_inicial"
                 st.rerun()

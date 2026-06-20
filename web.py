@@ -76,11 +76,11 @@ def injetar_css_moderno():
     }
     
     /* Inputs mais elegantes */
-    div.stTextInput input {
+    div.stTextInput input, div.stSelectbox select {
         border-radius: 8px;
         border: 1px solid #334155;
     }
-    div.stTextInput input:focus {
+    div.stTextInput input:focus, div.stSelectbox select:focus {
         border-color: #ff4b4b;
         box-shadow: 0 0 0 1px #ff4b4b;
     }
@@ -203,7 +203,17 @@ def check_password():
         elif st.session_state["tela_ativa"] == "login_admin":
             st.markdown("<h3 style='text-align: center; color: #fff; margin-bottom: 20px;'>Login Administrativo</h3>", unsafe_allow_html=True)
             
-            email = st.text_input("E-mail", placeholder="seu_email@molicenter.com.br").lower().strip()
+            opcoes_usuarios = ["Selecione...", "Administrador"] + [f"Loja {str(i).zfill(2)}" for i in range(1, 15)]
+            usuario_selecionado = st.selectbox("Usuário de acesso:", opcoes_usuarios)
+            
+            if usuario_selecionado == "Administrador":
+                email = "analista@molicenter.com.br"
+            elif usuario_selecionado.startswith("Loja"):
+                num_loja = int(usuario_selecionado.split()[1])
+                email = f"gerente{num_loja}@molicenter.com.br"
+            else:
+                email = ""
+                
             senha = st.text_input("Senha", type="password")
             
             st.write("") 
@@ -213,6 +223,7 @@ def check_password():
                 if st.button("Entrar", use_container_width=True, type="primary"):
                     emails_gerentes = [f"gerente{i}@molicenter.com.br" for i in range(1, 15)]
                     email_analista = "analista@molicenter.com.br"
+                    
                     if (email in emails_gerentes or email == email_analista) and senha == "moli1234":
                         st.session_state["authenticated"] = True
                         st.session_state["usuario_logado"] = email
@@ -224,7 +235,7 @@ def check_password():
                         st.session_state["form_count"] = 0
                         st.rerun()
                     else:
-                        st.error("❌ E-mail ou senha incorretos.")
+                        st.error("❌ Usuário ou senha incorretos.")
             with col_b2:
                 if st.button("⬅️ Voltar", use_container_width=True):
                     st.session_state["tela_ativa"] = "menu_inicial"

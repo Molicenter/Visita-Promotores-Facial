@@ -1,6 +1,5 @@
 import streamlit as st
 import pandas as pd
-from streamlit_gsheets import GSheetsConnection
 from datetime import datetime
 import pytz
 import os
@@ -9,7 +8,7 @@ import base64
 import re
 import time
 from deepface import DeepFace
-import io
+from supabase import create_client, Client # <- NOVA IMPORTAÇÃO
 
 # --- CONFIGURAÇÃO E LOGO ---
 USER_GITHUB = "adrianormartins86-lab"
@@ -33,6 +32,15 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
+# --- INICIALIZAÇÃO DO SUPABASE ---
+@st.cache_resource
+def init_supabase() -> Client:
+    url = st.secrets["SUPABASE_URL"]
+    key = st.secrets["SUPABASE_KEY"]
+    return create_client(url, key)
+
+supabase = init_supabase()
+
 # --- INJEÇÃO DE CSS OTIMIZADO PARA MOBILE E DESKTOP ---
 def injetar_css_moderno():
     st.markdown("""
@@ -47,104 +55,23 @@ def injetar_css_moderno():
         margin-bottom: 1.5rem;
         border: 1px solid #2D323E;
     }
-    .app-title {
-        color: #FFFFFF;
-        font-size: 28px;
-        font-weight: 800;
-        margin: 15px 0 5px 0;
-        font-family: 'Inter', -apple-system, sans-serif;
-        letter-spacing: -0.5px;
-    }
-    .app-subtitle {
-        color: #94A3B8;
-        font-size: 14px;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 1.5px;
-    }
-    
-    /* Efeito de elevação nos botões Streamlit */
-    div.stButton > button {
-        border-radius: 10px;
-        font-weight: 600;
-        padding: 0.5rem 1rem;
-        transition: all 0.2s ease;
-    }
-    div.stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-    }
-    
-    /* Inputs mais elegantes */
-    div.stTextInput input, div.stSelectbox select {
-        border-radius: 8px;
-        border: 1px solid #334155;
-    }
-    div.stTextInput input:focus, div.stSelectbox select:focus {
-        border-color: #ff4b4b;
-        box-shadow: 0 0 0 1px #ff4b4b;
-    }
-
-    /* Estilização dos Cards de KPI (Painel) */
-    .kpi-container {
-        display: flex;
-        flex-wrap: wrap; /* ESSENCIAL PARA MOBILE: Empilha se faltar espaço */
-        gap: 15px;
-        margin-bottom: 25px;
-    }
-    .kpi-card {
-        background-color: #1E212B;
-        border-left: 4px solid #ff4b4b;
-        padding: 20px;
-        border-radius: 10px;
-        flex: 1 1 200px; /* Cresce, encolhe e tem tamanho base de 200px */
-        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-    }
-    .kpi-title {
-        color: #94A3B8;
-        font-size: 13px;
-        font-weight: 600;
-        text-transform: uppercase;
-        margin-bottom: 5px;
-    }
-    .kpi-value {
-        color: #FFFFFF;
-        font-size: 24px;
-        font-weight: bold;
-    }
-    
-    /* Tabela otimizada */
-    [data-testid="stDataFrame"] {
-        border: 1px solid #2D323E;
-        border-radius: 10px;
-        overflow: hidden;
-    }
-    
-    /* Títulos de seção elegantes */
-    .section-header {
-        color: #E2E8F0;
-        font-size: 18px;
-        font-weight: 600;
-        border-bottom: 1px solid #2D323E;
-        padding-bottom: 10px;
-        margin-top: 30px;
-        margin-bottom: 20px;
-    }
-
-    /* --- MEDIA QUERIES PARA CELULAR --- */
+    .app-title { color: #FFFFFF; font-size: 28px; font-weight: 800; margin: 15px 0 5px 0; font-family: 'Inter', -apple-system, sans-serif; letter-spacing: -0.5px; }
+    .app-subtitle { color: #94A3B8; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; }
+    div.stButton > button { border-radius: 10px; font-weight: 600; padding: 0.5rem 1rem; transition: all 0.2s ease; }
+    div.stButton > button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+    div.stTextInput input, div.stSelectbox select { border-radius: 8px; border: 1px solid #334155; }
+    div.stTextInput input:focus, div.stSelectbox select:focus { border-color: #ff4b4b; box-shadow: 0 0 0 1px #ff4b4b; }
+    .kpi-container { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 25px; }
+    .kpi-card { background-color: #1E212B; border-left: 4px solid #ff4b4b; padding: 20px; border-radius: 10px; flex: 1 1 200px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
+    .kpi-title { color: #94A3B8; font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
+    .kpi-value { color: #FFFFFF; font-size: 24px; font-weight: bold; }
+    [data-testid="stDataFrame"] { border: 1px solid #2D323E; border-radius: 10px; overflow: hidden; }
+    .section-header { color: #E2E8F0; font-size: 18px; font-weight: 600; border-bottom: 1px solid #2D323E; padding-bottom: 10px; margin-top: 30px; margin-bottom: 20px; }
     @media (max-width: 600px) {
-        .login-card {
-            padding: 1.5rem 1rem; /* Menos margem interna no celular */
-        }
-        .app-title {
-            font-size: 22px; /* Texto menor no celular */
-        }
-        .kpi-card {
-            padding: 15px;
-        }
-        .kpi-value {
-            font-size: 20px;
-        }
+        .login-card { padding: 1.5rem 1rem; }
+        .app-title { font-size: 22px; }
+        .kpi-card { padding: 15px; }
+        .kpi-value { font-size: 20px; }
     }
     </style>
     """, unsafe_allow_html=True)
@@ -278,10 +205,11 @@ def check_password():
                                 if os.path.exists(caminho_temp_captura): os.remove(caminho_temp_captura)
                                 st.stop()
                         
-                        conn = st.connection("gsheets", type=GSheetsConnection)
+                        # --- SUPABASE: BUSCAR BIOMETRIAS ---
                         try:
-                            df_biometria = conn.read(worksheet="BIOMETRIA_GABARITOS", ttl=0)
-                        except:
+                            resp = supabase.table("biometria_gabaritos").select("*").execute()
+                            df_biometria = pd.DataFrame(resp.data)
+                        except Exception as e:
                             df_biometria = pd.DataFrame()
                         
                         pasta_local_temp = "temp_db_facial"
@@ -321,15 +249,13 @@ def check_password():
                                 nome_arquivo = os.path.basename(melhor_match['identity'])
                                 forn_detectado = os.path.splitext(nome_arquivo)[0]
                                 
-                                try: df_atual = conn.read(ttl=0)
-                                except: df_atual = pd.DataFrame()
-                                
                                 fuso_br = pytz.timezone('America/Sao_Paulo')
                                 agora_br = datetime.now(fuso_br)
                                 
                                 link_auditoria = upload_para_imgbb(foto_capturada.getvalue()) or "Erro Link"
                                 
-                                novo_registro = pd.DataFrame([{
+                                # --- SUPABASE: INSERIR CHECK-IN FACIAL ---
+                                novo_registro = {
                                     "Data": agora_br.strftime("%d/%m/%Y %H:%M:%S"),
                                     "Loja": "FACE", 
                                     "Fornecedor": forn_detectado,
@@ -337,10 +263,9 @@ def check_password():
                                     "Observacao": "[CHECK-IN FACIAL]",
                                     "Arquivo_Foto": link_auditoria, 
                                     "Usuario": "totem_biometrico"
-                                }])
+                                }
                                 
-                                df_final = pd.concat([df_atual, novo_registro], ignore_index=True)
-                                conn.update(data=df_final) 
+                                supabase.table("registro_visitas").insert(novo_registro).execute()
                                 
                                 st.success(f"🎉 Reconhecido com sucesso! Empresa: {forn_detectado}")
                                 st.balloons()
@@ -365,8 +290,7 @@ def check_password():
 
 # --- LÓGICA PRINCIPAL DA APLICAÇÃO ---
 if check_password():
-    injetar_css_moderno() # Garante que o CSS esteja carregado no painel também
-    conn = st.connection("gsheets", type=GSheetsConnection)
+    injetar_css_moderno() 
 
     @st.cache_data
     def carregar_fornecedores():
@@ -449,27 +373,22 @@ if check_password():
                                     url_gabarito_salvo = upload_para_imgbb(foto_gabarito.getvalue())
                                     
                                     if url_gabarito_salvo:
-                                        try:
-                                            df_bio_atual = conn.read(worksheet="BIOMETRIA_GABARITOS", ttl=0)
-                                        except:
-                                            df_bio_atual = pd.DataFrame(columns=["Data_Cadastro", "Empresa", "Nome_Promotor", "Telefone", "Link_Gabarito"])
-                                        
                                         fuso_br = pytz.timezone('America/Sao_Paulo')
                                         agora_br = datetime.now(fuso_br)
                                         
-                                        if not df_bio_atual.empty and "Empresa" in df_bio_atual.columns:
-                                            df_bio_atual = df_bio_atual[df_bio_atual["Empresa"] != empresa_alvo]
+                                        # --- SUPABASE: ATUALIZAR GABARITO ---
+                                        # Exclui o antigo (se houver) para evitar duplicatas da mesma empresa
+                                        supabase.table("biometria_gabaritos").delete().eq("Empresa", empresa_alvo).execute()
                                         
-                                        novo_gabarito_row = pd.DataFrame([{
+                                        # Insere o novo
+                                        novo_gabarito = {
                                             "Data_Cadastro": agora_br.strftime("%d/%m/%Y %H:%M:%S"),
                                             "Empresa": empresa_alvo,
                                             "Nome_Promotor": nome_digitado,
                                             "Telefone": tel_opcional,
                                             "Link_Gabarito": url_gabarito_salvo
-                                        }])
-                                        
-                                        df_bio_final = pd.concat([df_bio_atual, novo_gabarito_row], ignore_index=True)
-                                        conn.update(worksheet="BIOMETRIA_GABARITOS", data=df_bio_final)
+                                        }
+                                        supabase.table("biometria_gabaritos").insert(novo_gabarito).execute()
                                         
                                         st.success(f"✅ Biometria de {nome_digitado} salva!")
                                         if os.path.exists(caminho_local_salvar): os.remove(caminho_local_salvar)
@@ -496,7 +415,6 @@ if check_password():
             loja_sel = next((l for l in lista_lojas if l.startswith(id_g) or l.startswith(id_g.zfill(2))), "Escolha...")
             st.info(f"📍 **Loja Autenticada: {loja_sel}**")
 
-        # Define df_hoje para evitar erros na contagem do KPI
         df_hoje = pd.DataFrame()
         if loja_sel != "Escolha...":
             df_loja = df_forn[df_forn[col_loja].astype(str) == loja_sel]
@@ -504,7 +422,7 @@ if check_password():
 
         total_fornecedores = len(df_hoje)
 
-        # --- CABEÇALHO KPI (GLASSMORPHISM/CARDS) ---
+        # --- CABEÇALHO KPI ---
         st.markdown(f"""
         <div class="kpi-container">
             <div class="kpi-card">
@@ -529,7 +447,6 @@ if check_password():
             if not df_hoje.empty:
                 colunas_exibir = [col_fornecedor, col_marcas, col_comprador, col_promotor, col_telefone, col_frequencia]
                 tabela_exibicao = df_hoje[colunas_exibir].copy().sort_values(by=col_fornecedor)
-                # No celular, o Streamlit permite rolar a tabela horizontalmente se ela não couber
                 st.dataframe(tabela_exibicao, use_container_width=True, hide_index=True)
             else:
                 st.warning("Nenhum fornecedor programado para hoje.")
@@ -558,20 +475,16 @@ if check_password():
                     
                     if foto: st.image(foto, width=250)
 
-                    st.write("") # Espaçamento para o botão não ficar colado
+                    st.write("") 
                     
                     if st.button("Confirmar Registro Manual", use_container_width=True, type="primary"):
                         try:
                             with st.spinner('🚀 Gravando com segurança...'):
                                 link_f = upload_para_imgbb(foto.getvalue()) if foto else "Sem foto"
                                 
-                                if link_f or not foto: # Aceita se não tiver foto ou se a foto fez upload
-                                    try:
-                                        df_atual = conn.read(ttl=0)
-                                    except:
-                                        df_atual = pd.DataFrame()
-
-                                    novo_registro = pd.DataFrame([{
+                                if link_f or not foto:
+                                    # --- SUPABASE: INSERIR CHECK-IN MANUAL ---
+                                    novo_registro = {
                                         "Data": agora.strftime("%d/%m/%Y %H:%M:%S"),
                                         "Loja": loja_sel, 
                                         "Fornecedor": forn_sel,
@@ -579,10 +492,9 @@ if check_password():
                                         "Observacao": obs,
                                         "Arquivo_Foto": link_f, 
                                         "Usuario": st.session_state["usuario_logado"]
-                                    }])
+                                    }
                                     
-                                    df_final = pd.concat([df_atual, novo_registro], ignore_index=True)
-                                    conn.update(data=df_final)
+                                    supabase.table("registro_visitas").insert(novo_registro).execute()
                                     
                                     st.success(f"✅ Registro concluído com sucesso!")
                                     st.balloons()

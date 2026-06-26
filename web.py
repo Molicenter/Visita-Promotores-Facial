@@ -298,6 +298,10 @@ if check_password():
         if os.path.exists(arquivo):
             try:
                 df = pd.read_excel(arquivo, engine='openpyxl').dropna(how='all')
+                
+                # ---> SOLUÇÃO: Substitui valores NaN (células vazias) por string vazia
+                df = df.fillna("") 
+                
                 df.columns = [str(col).strip() for col in df.columns]
                 return df
             except Exception as e:

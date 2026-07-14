@@ -161,12 +161,14 @@ def check_password():
                 emails_gerentes = [f"gerente{i}@molicenter.com.br" for i in range(1, 15)]
                 email_analista = "analista@molicenter.com.br"
                 
-                # Senha lida dos Secrets do Streamlit Cloud (nunca hardcoded — o repo é público!)
-                senha_correta = st.secrets.get("SENHA_ACESSO", None)
+                # Senhas lidas dos Secrets do Streamlit Cloud (nunca hardcoded — o repo é público!)
+                senha_admin = st.secrets.get("SENHA_ADMIN", None)
+                senha_gerente = st.secrets.get("SENHA_GERENTE", None)
                 
-                if senha_correta is None:
-                    st.error("⚠️ SENHA_ACESSO não configurada nos Secrets do app.")
-                elif (email in emails_gerentes or email == email_analista) and senha == senha_correta:
+                if senha_admin is None or senha_gerente is None:
+                    st.error("⚠️ SENHA_ADMIN / SENHA_GERENTE não configuradas nos Secrets do app.")
+                elif (email == email_analista and senha == senha_admin) or \
+                     (email in emails_gerentes and senha == senha_gerente):
                     st.session_state["authenticated"] = True
                     st.session_state["usuario_logado"] = email
                     if email == email_analista:

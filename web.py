@@ -45,28 +45,28 @@ supabase = init_supabase()
 def injetar_css_moderno():
     st.markdown("""
     <style>
-    /* Container principal estilo 'Card' (Login) */
+    /* Container principal estilo 'Card' (Login) — azul institucional Molicenter */
     .login-card {
-        background-color: #1E212B; 
+        background: linear-gradient(160deg, #0B3D63 0%, #14507F 100%);
         padding: 2.5rem 2rem;
         border-radius: 16px;
-        box-shadow: 0 10px 25px rgba(0,0,0,0.4);
+        box-shadow: 0 10px 25px rgba(11,61,99,0.25);
         text-align: center;
         margin-bottom: 1.5rem;
-        border: 1px solid #2D323E;
+        border: 1px solid #2A6693;
     }
     .app-title { color: #FFFFFF; font-size: 28px; font-weight: 800; margin: 15px 0 5px 0; font-family: 'Inter', -apple-system, sans-serif; letter-spacing: -0.5px; }
-    .app-subtitle { color: #94A3B8; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; }
+    .app-subtitle { color: #A8D4F0; font-size: 14px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; }
     div.stButton > button { border-radius: 10px; font-weight: 600; padding: 0.5rem 1rem; transition: all 0.2s ease; }
-    div.stButton > button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
-    div.stTextInput input, div.stSelectbox select { border-radius: 8px; border: 1px solid #334155; }
-    div.stTextInput input:focus, div.stSelectbox select:focus { border-color: #ff4b4b; box-shadow: 0 0 0 1px #ff4b4b; }
+    div.stButton > button:hover { transform: translateY(-2px); box-shadow: 0 5px 15px rgba(11,61,99,0.15); }
+    div.stTextInput input, div.stSelectbox select { border-radius: 8px; border: 1px solid #D5E0EA; }
+    div.stTextInput input:focus, div.stSelectbox select:focus { border-color: #E5007D; box-shadow: 0 0 0 1px #E5007D; }
     .kpi-container { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 25px; }
-    .kpi-card { background-color: #1E212B; border-left: 4px solid #ff4b4b; padding: 20px; border-radius: 10px; flex: 1 1 200px; box-shadow: 0 4px 6px rgba(0,0,0,0.2); }
-    .kpi-title { color: #94A3B8; font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
-    .kpi-value { color: #FFFFFF; font-size: 24px; font-weight: bold; }
-    [data-testid="stDataFrame"] { border: 1px solid #2D323E; border-radius: 10px; overflow: hidden; }
-    .section-header { color: #E2E8F0; font-size: 18px; font-weight: 600; border-bottom: 1px solid #2D323E; padding-bottom: 10px; margin-top: 30px; margin-bottom: 20px; }
+    .kpi-card { background-color: #FFFFFF; border: 1px solid #D5E0EA; border-left: 4px solid #E5007D; padding: 20px; border-radius: 10px; flex: 1 1 200px; box-shadow: 0 4px 6px rgba(11,61,99,0.08); }
+    .kpi-title { color: #5A7184; font-size: 13px; font-weight: 600; text-transform: uppercase; margin-bottom: 5px; }
+    .kpi-value { color: #22303C; font-size: 24px; font-weight: bold; }
+    [data-testid="stDataFrame"] { border: 1px solid #C4D4E0; border-radius: 10px; overflow: hidden; }
+    .section-header { color: #0B3D63; font-size: 18px; font-weight: 600; border-bottom: 2px solid #DCEBF7; padding-bottom: 10px; margin-top: 30px; margin-bottom: 20px; }
     @media (max-width: 600px) {
         .login-card { padding: 1.5rem 1rem; }
         .app-title { font-size: 22px; }
@@ -115,7 +115,7 @@ def check_password():
         """, unsafe_allow_html=True)
 
         if st.session_state["tela_ativa"] == "menu_inicial":
-            st.markdown("<p style='text-align: center; color: #CBD5E1; font-size: 16px; margin-bottom: 15px; font-weight: 500;'>Selecione seu perfil de acesso:</p>", unsafe_allow_html=True)
+            st.markdown("<p style='text-align: center; color: #22303C; font-size: 16px; margin-bottom: 15px; font-weight: 500;'>Selecione seu perfil de acesso:</p>", unsafe_allow_html=True)
             
             if st.button("📷 SOU PROMOTOR (Validação Facial)", use_container_width=True, type="primary"):
                 st.session_state["tela_ativa"] = "camera_promotor"
@@ -128,53 +128,64 @@ def check_password():
                 st.rerun()
 
         elif st.session_state["tela_ativa"] == "login_admin":
-            st.markdown("<h3 style='text-align: center; color: #fff; margin-bottom: 20px;'>Login Administrativo</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align: center; color: #0B3D63; margin-bottom: 20px;'>Login Administrativo</h3>", unsafe_allow_html=True)
             
-            opcoes_usuarios = ["Selecione...", "Administrador"] + [f"Loja {str(i).zfill(2)}" for i in range(1, 15)]
-            usuario_selecionado = st.selectbox("Usuário de acesso:", opcoes_usuarios)
-            
-            if usuario_selecionado == "Administrador":
-                email = "analista@molicenter.com.br"
-            elif usuario_selecionado.startswith("Loja"):
-                num_loja = int(usuario_selecionado.split()[1])
-                email = f"gerente{num_loja}@molicenter.com.br"
-            else:
-                email = ""
+            # st.form evita o bug de race condition (clique no botão antes do
+            # estado do input de senha ser confirmado) — mesma correção do Despesas-Comp
+            with st.form("form_login_admin", clear_on_submit=False):
+                opcoes_usuarios = ["Selecione...", "Administrador"] + [f"Loja {str(i).zfill(2)}" for i in range(1, 15)]
+                usuario_selecionado = st.selectbox("Usuário de acesso:", opcoes_usuarios)
+                senha = st.text_input("Senha", type="password")
                 
-            senha = st.text_input("Senha", type="password")
+                st.write("") 
+                
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    btn_entrar = st.form_submit_button("Entrar", use_container_width=True, type="primary")
+                with col_b2:
+                    btn_voltar = st.form_submit_button("⬅️ Voltar", use_container_width=True)
             
-            st.write("") 
+            if btn_voltar:
+                st.session_state["tela_ativa"] = "menu_inicial"
+                st.rerun()
             
-            col_b1, col_b2 = st.columns(2)
-            with col_b1:
-                if st.button("Entrar", use_container_width=True, type="primary"):
-                    emails_gerentes = [f"gerente{i}@molicenter.com.br" for i in range(1, 15)]
-                    email_analista = "analista@molicenter.com.br"
-                    
-                    if (email in emails_gerentes or email == email_analista) and senha == "moli1234":
-                        st.session_state["authenticated"] = True
-                        st.session_state["usuario_logado"] = email
-                        if email == email_analista:
-                            st.session_state["perfil"] = "analista"
-                        else:
-                            st.session_state["perfil"] = "gerente"
-                            st.session_state["loja_id"] = re.search(r'\d+', email).group()
-                        st.session_state["form_count"] = 0
-                        st.rerun()
+            if btn_entrar:
+                if usuario_selecionado == "Administrador":
+                    email = "analista@molicenter.com.br"
+                elif usuario_selecionado.startswith("Loja"):
+                    num_loja = int(usuario_selecionado.split()[1])
+                    email = f"gerente{num_loja}@molicenter.com.br"
+                else:
+                    email = ""
+                
+                emails_gerentes = [f"gerente{i}@molicenter.com.br" for i in range(1, 15)]
+                email_analista = "analista@molicenter.com.br"
+                
+                # Senha lida dos Secrets do Streamlit Cloud (nunca hardcoded — o repo é público!)
+                senha_correta = st.secrets.get("SENHA_ACESSO", None)
+                
+                if senha_correta is None:
+                    st.error("⚠️ SENHA_ACESSO não configurada nos Secrets do app.")
+                elif (email in emails_gerentes or email == email_analista) and senha == senha_correta:
+                    st.session_state["authenticated"] = True
+                    st.session_state["usuario_logado"] = email
+                    if email == email_analista:
+                        st.session_state["perfil"] = "analista"
                     else:
-                        st.error("❌ Usuário ou senha incorretos.")
-            with col_b2:
-                if st.button("⬅️ Voltar", use_container_width=True):
-                    st.session_state["tela_ativa"] = "menu_inicial"
+                        st.session_state["perfil"] = "gerente"
+                        st.session_state["loja_id"] = re.search(r'\d+', email).group()
+                    st.session_state["form_count"] = 0
                     st.rerun()
+                else:
+                    st.error("❌ Usuário ou senha incorretos.")
 
         elif st.session_state["tela_ativa"] == "camera_promotor":
-            st.markdown("<h3 style='text-align: center; color: #fff; margin-bottom: 10px;'>📸 Validação Facial</h3>", unsafe_allow_html=True)
+            st.markdown("<h3 style='text-align: center; color: #0B3D63; margin-bottom: 10px;'>📸 Validação Facial</h3>", unsafe_allow_html=True)
             st.markdown(
                 """
-                <div style="background-color:#1E212B; padding:15px; border:2px dashed #ff4b4b; border-radius:10px; text-align:center; margin-bottom:20px;">
-                    <h4 style="color:#ff4b4b; margin:0; font-size: 16px;">[ ENQUADRAMENTO OBRIGATÓRIO ]</h4>
-                    <p style="color:#94A3B8; margin:8px 0 0 0; font-size:14px; line-height: 1.4;">
+                <div style="background-color:#FFF0F7; padding:15px; border:2px dashed #E5007D; border-radius:10px; text-align:center; margin-bottom:20px;">
+                    <h4 style="color:#E5007D; margin:0; font-size: 16px;">[ ENQUADRAMENTO OBRIGATÓRIO ]</h4>
+                    <p style="color:#5A7184; margin:8px 0 0 0; font-size:14px; line-height: 1.4;">
                         Aproxime seu rosto da câmera até que ele ocupe <b>quase toda a área central</b>.<br>Fotos de longe serão recusadas automaticamente.
                     </p>
                 </div>
@@ -346,7 +357,7 @@ if check_password():
                     
                     st.markdown(
                         """
-                        <div style="background-color:#1e222b; padding:10px; border-radius:5px; height:130px; overflow-y:scroll; font-size:11px; color:#bdc3c7; border:1px solid #34495e; margin-bottom:10px; line-height:1.4;">
+                        <div style="background-color:#14507F; padding:10px; border-radius:5px; height:130px; overflow-y:scroll; font-size:11px; color:#DCEBF7; border:1px solid #2A6693; margin-bottom:10px; line-height:1.4;">
                             <b>**TERMOS DE USO E PROTEÇÃO DE DADOS (LGPD)**</b><br><br>
                             Declaramos para os devidos fins legais, em conformidade com a Lei Geral de Proteção de Dados (LGPD), que a imagem capturada para este cadastro biométrico (gabarito) será utilizada estritamente para o registro interno de ponto e controle de acesso de promotores nas unidades Molicenter.<br><br>
                             Os dados biométricos serão armazenados de forma segura e jamais serão compartilhados com terceiros sem consentimento explícito.<br><br>

@@ -1,4 +1,4 @@
-theme]
+[theme]
 base = "light"
 primaryColor = "#E5007D"                        # magenta — botões primários, radio, foco
 backgroundColor = "#FFFFFF"                      # área principal

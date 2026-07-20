@@ -220,7 +220,7 @@ def check_password():
                         
                         # --- SUPABASE: BUSCAR BIOMETRIAS ---
                         try:
-                            resp = supabase.table("biometria_gabaritos").select("*").execute()
+                            resp = supabase.table("promot_biometria_gabaritos").select("*").execute()
                             df_biometria = pd.DataFrame(resp.data)
                         except Exception as e:
                             df_biometria = pd.DataFrame()
@@ -278,7 +278,7 @@ def check_password():
                                     "Usuario": "totem_biometrico"
                                 }
                                 
-                                supabase.table("registro_visitas").insert(novo_registro).execute()
+                                supabase.table("promot_registro_visitas").insert(novo_registro).execute()
                                 
                                 st.success(f"🎉 Reconhecido com sucesso! Empresa: {forn_detectado}")
                                 st.balloons()
@@ -395,7 +395,7 @@ if check_password():
                                         
                                         # --- SUPABASE: ATUALIZAR GABARITO ---
                                         # Exclui o antigo (se houver) para evitar duplicatas da mesma empresa
-                                        supabase.table("biometria_gabaritos").delete().eq("Empresa", empresa_alvo).execute()
+                                        supabase.table("promot_biometria_gabaritos").delete().eq("Empresa", empresa_alvo).execute()
                                         
                                         # Insere o novo
                                         novo_gabarito = {
@@ -405,7 +405,7 @@ if check_password():
                                             "Telefone": tel_opcional,
                                             "Link_Gabarito": url_gabarito_salvo
                                         }
-                                        supabase.table("biometria_gabaritos").insert(novo_gabarito).execute()
+                                        supabase.table("promot_biometria_gabaritos").insert(novo_gabarito).execute()
                                         
                                         st.success(f"✅ Biometria de {nome_digitado} salva!")
                                         if os.path.exists(caminho_local_salvar): os.remove(caminho_local_salvar)
@@ -511,7 +511,7 @@ if check_password():
                                         "Usuario": st.session_state["usuario_logado"]
                                     }
                                     
-                                    supabase.table("registro_visitas").insert(novo_registro).execute()
+                                    supabase.table("promot_registro_visitas").insert(novo_registro).execute()
                                     
                                     st.success(f"✅ Registro concluído com sucesso!")
                                     st.balloons()

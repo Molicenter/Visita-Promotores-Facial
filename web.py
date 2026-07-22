@@ -349,9 +349,9 @@ if check_password():
             with st.expander("⚙️ CADASTRO PROMOTOR", expanded=False):
                 st.caption("Registre novos rostos de forma segura via nuvem.")
                 lista_empresas_cadastro = sorted(df_forn[col_fornecedor].dropna().unique().tolist())
-                empresa_alvo = st.selectbox("1. Empresa:", ["Escolha..."] + lista_empresas_cadastro, key="sb_cad_sidebar")
+                empresa_alvo = st.selectbox("1. Empresa:", lista_empresas_cadastro, index=None, placeholder="Escolha...", key="sb_cad_sidebar")
                 
-                if empresa_alvo != "Escolha...":
+                if empresa_alvo is not None:
                     nome_digitado = st.text_input("2. Nome do Promotor:", placeholder="Digite o nome completo", key="txt_nome_sidebar").strip()
                     tel_opcional = st.text_input("3. Telefone (Opcional):", placeholder="(DDD) 00000-0000", key="txt_tel_sidebar").strip()
                     
@@ -426,14 +426,14 @@ if check_password():
 
         lista_lojas = sorted(df_forn[col_loja].dropna().astype(str).unique().tolist())
         if st.session_state.get("perfil") == "analista":
-            loja_sel = st.selectbox("Selecione a Loja:", ["Escolha..."] + lista_lojas)
+            loja_sel = st.selectbox("Selecione a Loja:", lista_lojas, index=None, placeholder="Escolha...")
         else:
             id_g = st.session_state.get("loja_id", "")
-            loja_sel = next((l for l in lista_lojas if l.startswith(id_g) or l.startswith(id_g.zfill(2))), "Escolha...")
+            loja_sel = next((l for l in lista_lojas if l.startswith(id_g) or l.startswith(id_g.zfill(2))), None)
             st.info(f"📍 **Loja Autenticada: {loja_sel}**")
 
         df_hoje = pd.DataFrame()
-        if loja_sel != "Escolha...":
+        if loja_sel is not None:
             df_loja = df_forn[df_forn[col_loja].astype(str) == loja_sel]
             df_hoje = df_loja[df_loja[col_frequencia].astype(str).str.contains(dia_hoje, case=False, na=False)]
 
@@ -448,7 +448,7 @@ if check_password():
             </div>
             <div class="kpi-card">
                 <div class="kpi-title">📍 Loja Selecionada</div>
-                <div class="kpi-value">{loja_sel if loja_sel != 'Escolha...' else 'Aguardando...'}</div>
+                <div class="kpi-value">{loja_sel if loja_sel is not None else 'Aguardando...'}</div>
             </div>
             <div class="kpi-card" style="border-left-color: #10B981;">
                 <div class="kpi-title">👥 Visitas Hoje</div>
@@ -457,7 +457,7 @@ if check_password():
         </div>
         """, unsafe_allow_html=True)
 
-        if loja_sel != "Escolha...":
+        if loja_sel is not None:
             
             st.markdown('<div class="section-header">📋 Agenda de Visitas (Hoje)</div>', unsafe_allow_html=True)
             
@@ -473,15 +473,17 @@ if check_password():
             
             with st.container():
                 st.markdown('<div class="section-header">✍️ Realizar Registro Manual</div>', unsafe_allow_html=True)
-                opcoes_forn = ["Escolha..."] + sorted(df_loja[col_fornecedor].unique().tolist())
+                opcoes_forn = sorted(df_loja[col_fornecedor].unique().tolist())
                 
                 forn_sel = st.selectbox(
                     "1. Selecione o fornecedor para o check-in:", 
                     opcoes_forn, 
+                    index=None,
+                    placeholder="Escolha...",
                     key=f"forn_{st.session_state['form_count']}"
                 )
 
-                if forn_sel != "Escolha...":
+                if forn_sel is not None:
                     dados_linha = df_loja[df_loja[col_fornecedor] == forn_sel].iloc[0]
                     freq_cadastrada = dados_linha[col_frequencia]
                     

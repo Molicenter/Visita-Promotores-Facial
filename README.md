@@ -1,2 +1,20 @@
 # Visita-Promotores-Facial
 Novo com reconhecimento facial
+
+Antigo requirements.txt
+# --- Base (mesmo padrão dos outros apps Molicenter) ---
+streamlit==1.59.2
+pandas==2.2.3
+numpy==2.1.3
+pyarrow==18.1.0
+requests==2.32.3
+openpyxl==3.1.5
+pytz==2025.2
+Pillow==11.3.0
+supabase==2.31.0
+ 
+# --- Reconhecimento facial (versões casadas: TF e tf-keras SEMPRE iguais) ---
+tensorflow-cpu==2.21.0
+tf-keras==2.21.0
+deepface==0.0.100
+opencv-python-headless==4.11.0.86

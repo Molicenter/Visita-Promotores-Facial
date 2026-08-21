@@ -67,6 +67,57 @@ def injetar_css_moderno():
     .kpi-value { color: #22303C; font-size: 24px; font-weight: bold; }
     [data-testid="stDataFrame"] { border: 1px solid #C4D4E0; border-radius: 10px; overflow: hidden; }
     .section-header { color: #0B3D63; font-size: 18px; font-weight: 600; border-bottom: 2px solid #DCEBF7; padding-bottom: 10px; margin-top: 30px; margin-bottom: 20px; }
+
+    /* Sidebar azul institucional — o [theme.sidebar] do .streamlit/config.toml
+       não é aplicado pelo Streamlit 1.38 (recurso de versões mais novas),
+       então pintamos via CSS pra ficar igual aos outros apps Molicenter */
+    section[data-testid="stSidebar"] { background-color: #0B3D63; }
+    section[data-testid="stSidebar"] h1,
+    section[data-testid="stSidebar"] h2,
+    section[data-testid="stSidebar"] h3,
+    section[data-testid="stSidebar"] p,
+    section[data-testid="stSidebar"] span,
+    section[data-testid="stSidebar"] label,
+    section[data-testid="stSidebar"] .stMarkdown {
+        color: #FFFFFF !important;
+    }
+    section[data-testid="stSidebar"] a { color: #4FC3F7 !important; }
+    .nav-label {
+        color: #A8D4F0 !important;
+        font-size: 12px;
+        font-weight: 700;
+        letter-spacing: 1px;
+        text-transform: uppercase;
+        margin: 8px 0 6px 0;
+    }
+    section[data-testid="stSidebar"] [data-testid="stExpander"] {
+        background-color: #0E4670;
+        border: 1px solid #2A6693;
+        border-radius: 10px;
+    }
+    section[data-testid="stSidebar"] div.stButton > button[kind="secondary"] {
+        background-color: #14507F;
+        color: #FFFFFF;
+        border: 1px solid #2A6693;
+    }
+    section[data-testid="stSidebar"] div.stButton > button[kind="secondary"]:hover {
+        background-color: #1A62A0;
+        border-color: #4FC3F7;
+    }
+    section[data-testid="stSidebar"] input,
+    section[data-testid="stSidebar"] textarea,
+    section[data-testid="stSidebar"] [data-baseweb="select"] > div {
+        background-color: #14507F !important;
+        color: #FFFFFF !important;
+        border-color: #2A6693 !important;
+    }
+    section[data-testid="stSidebar"] input::placeholder {
+        color: #A8D4F0 !important;
+    }
+    section[data-testid="stSidebar"] [data-testid="stAlert"] p,
+    section[data-testid="stSidebar"] [data-testid="stAlert"] span {
+        color: unset !important;
+    }
     @media (max-width: 600px) {
         .login-card { padding: 1.5rem 1rem; }
         .app-title { font-size: 22px; }
@@ -306,7 +357,10 @@ def check_password():
 
 # --- LÓGICA PRINCIPAL DA APLICAÇÃO ---
 if check_password():
-    injetar_css_moderno() 
+    injetar_css_moderno()
+
+    if "vista_central" not in st.session_state:
+        st.session_state["vista_central"] = "painel"
 
     # --- COLUNAS PADRÃO DA TABELA promot_fornecedores (Supabase) ---
     col_id = "id"
@@ -473,6 +527,21 @@ if check_password():
                                 except Exception as err:
                                     st.error(f"Erro no Processamento: {err}")
 
+        st.markdown("---")
+        st.markdown('<div class="nav-label">📂 NAVEGAÇÃO</div>', unsafe_allow_html=True)
+
+        vista_atual = st.session_state.get("vista_central", "painel")
+
+        if st.button("🏠 Painel Principal", use_container_width=True, key="nav_painel",
+                     type="primary" if vista_atual == "painel" else "secondary"):
+            st.session_state["vista_central"] = "painel"
+            st.rerun()
+
+        if st.button("📋 Gerenciar Fornecedores / Promotores", use_container_width=True, key="nav_gerenciar_forn",
+                     type="primary" if vista_atual == "gerenciar_forn" else "secondary"):
+            st.session_state["vista_central"] = "gerenciar_forn"
+            st.rerun()
+
     # --- FLUXO DA TELA CENTRAL (PAINEL E REGISTRO) ---
     if True:  # df_forn agora vem do Supabase e nunca é None (pode vir vazio)
         fuso_br = pytz.timezone('America/Sao_Paulo')
@@ -521,17 +590,79 @@ if check_password():
         """, unsafe_allow_html=True)
 
         if loja_sel is not None:
-            
-            st.markdown('<div class="section-header">📋 Agenda de Visitas (Hoje)</div>', unsafe_allow_html=True)
-            
-            if not df_hoje.empty:
-                colunas_exibir = [col_fornecedor, col_marcas, col_comprador, col_promotor, col_telefone, col_frequencia]
-                tabela_exibicao = df_hoje[colunas_exibir].copy().sort_values(by=col_fornecedor)
-                st.dataframe(tabela_exibicao, use_container_width=True, hide_index=True)
-            else:
-                st.warning("Nenhum fornecedor programado para hoje.")
 
-            with st.expander("📋 Gerenciar Fornecedores / Promotores desta loja", expanded=False):
+            vista = st.session_state.get("vista_central", "painel")
+
+            if vista == "painel":
+                st.markdown('<div class="section-header">📋 Agenda de Visitas (Hoje)</div>', unsafe_allow_html=True)
+
+                if not df_hoje.empty:
+                    colunas_exibir = [col_fornecedor, col_marcas, col_comprador, col_promotor, col_telefone, col_frequencia]
+                    tabela_exibicao = df_hoje[colunas_exibir].copy().sort_values(by=col_fornecedor)
+                    st.dataframe(tabela_exibicao, use_container_width=True, hide_index=True)
+                else:
+                    st.warning("Nenhum fornecedor programado para hoje.")
+
+                if "form_count" not in st.session_state:
+                    st.session_state["form_count"] = 0
+
+                with st.container():
+                    st.markdown('<div class="section-header">✍️ Realizar Registro Manual</div>', unsafe_allow_html=True)
+                    opcoes_forn = sorted(df_loja[col_fornecedor].unique().tolist())
+
+                    forn_sel = st.selectbox(
+                        "1. Selecione o fornecedor para o check-in:",
+                        opcoes_forn,
+                        index=None,
+                        placeholder="Escolha...",
+                        key=f"forn_{st.session_state['form_count']}"
+                    )
+
+                    if forn_sel is not None:
+                        dados_linha = df_loja[df_loja[col_fornecedor] == forn_sel].iloc[0]
+                        freq_cadastrada = dados_linha[col_frequencia]
+
+                        st.success(f"✅ **Selecionado:** {forn_sel}")
+
+                        obs = st.text_input("2. Observação (Opcional):", placeholder="Ex: Produto em falta, prateleira organizada...", key=f"obs_{st.session_state['form_count']}")
+                        foto = st.file_uploader("3. 📸 Foto do Registro (Opcional)", type=["jpg", "jpeg", "png"], key=f"foto_{st.session_state['form_count']}")
+
+                        if foto: st.image(foto, width=250)
+
+                        st.write("")
+
+                        if st.button("Confirmar Registro Manual", use_container_width=True, type="primary"):
+                            try:
+                                with st.spinner('🚀 Gravando com segurança...'):
+                                    link_f = upload_para_imgbb(foto.getvalue()) if foto else "Sem foto"
+
+                                    if link_f or not foto:
+                                        # --- SUPABASE: INSERIR CHECK-IN MANUAL ---
+                                        novo_registro = {
+                                            "Data": agora.strftime("%d/%m/%Y %H:%M:%S"),
+                                            "Loja": loja_sel,
+                                            "Fornecedor": forn_sel,
+                                            "Frequencia": freq_cadastrada,
+                                            "Observacao": obs,
+                                            "Arquivo_Foto": link_f,
+                                            "Usuario": st.session_state["usuario_logado"]
+                                        }
+
+                                        supabase.table("promot_registro_visitas").insert(novo_registro).execute()
+
+                                        st.success(f"✅ Registro concluído com sucesso!")
+                                        st.balloons()
+
+                                        st.session_state["form_count"] += 1
+                                        time.sleep(2)
+                                        st.rerun()
+                                    else:
+                                        st.error("❌ Falha no upload da foto. Verifique a chave da API do ImgBB.")
+                            except Exception as e:
+                                st.error(f"Erro ao salvar: {e}")
+
+            elif vista == "gerenciar_forn":
+                st.markdown('<div class="section-header">📋 Gerenciar Fornecedores / Promotores desta loja</div>', unsafe_allow_html=True)
                 st.caption(
                     "Adicione, edite ou remova fornecedores e promotores da loja "
                     f"{loja_sel}. Clique em uma célula para editar; use a linha em "
@@ -627,61 +758,3 @@ if check_password():
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro ao salvar alterações: {e}")
-
-            if "form_count" not in st.session_state:
-                st.session_state["form_count"] = 0
-            
-            with st.container():
-                st.markdown('<div class="section-header">✍️ Realizar Registro Manual</div>', unsafe_allow_html=True)
-                opcoes_forn = sorted(df_loja[col_fornecedor].unique().tolist())
-                
-                forn_sel = st.selectbox(
-                    "1. Selecione o fornecedor para o check-in:", 
-                    opcoes_forn, 
-                    index=None,
-                    placeholder="Escolha...",
-                    key=f"forn_{st.session_state['form_count']}"
-                )
-
-                if forn_sel is not None:
-                    dados_linha = df_loja[df_loja[col_fornecedor] == forn_sel].iloc[0]
-                    freq_cadastrada = dados_linha[col_frequencia]
-                    
-                    st.success(f"✅ **Selecionado:** {forn_sel}")
-                    
-                    obs = st.text_input("2. Observação (Opcional):", placeholder="Ex: Produto em falta, prateleira organizada...", key=f"obs_{st.session_state['form_count']}")
-                    foto = st.file_uploader("3. 📸 Foto do Registro (Opcional)", type=["jpg", "jpeg", "png"], key=f"foto_{st.session_state['form_count']}")
-                    
-                    if foto: st.image(foto, width=250)
-
-                    st.write("") 
-                    
-                    if st.button("Confirmar Registro Manual", use_container_width=True, type="primary"):
-                        try:
-                            with st.spinner('🚀 Gravando com segurança...'):
-                                link_f = upload_para_imgbb(foto.getvalue()) if foto else "Sem foto"
-                                
-                                if link_f or not foto:
-                                    # --- SUPABASE: INSERIR CHECK-IN MANUAL ---
-                                    novo_registro = {
-                                        "Data": agora.strftime("%d/%m/%Y %H:%M:%S"),
-                                        "Loja": loja_sel, 
-                                        "Fornecedor": forn_sel,
-                                        "Frequencia": freq_cadastrada, 
-                                        "Observacao": obs,
-                                        "Arquivo_Foto": link_f, 
-                                        "Usuario": st.session_state["usuario_logado"]
-                                    }
-                                    
-                                    supabase.table("promot_registro_visitas").insert(novo_registro).execute()
-                                    
-                                    st.success(f"✅ Registro concluído com sucesso!")
-                                    st.balloons()
-                                    
-                                    st.session_state["form_count"] += 1
-                                    time.sleep(2)
-                                    st.rerun()
-                                else:
-                                    st.error("❌ Falha no upload da foto. Verifique a chave da API do ImgBB.")
-                        except Exception as e:
-                            st.error(f"Erro ao salvar: {e}")

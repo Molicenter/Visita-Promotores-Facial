@@ -419,7 +419,7 @@ if check_password():
         
         if st.session_state.get("perfil") == "analista":
             with st.expander("🗄️ Base de Fornecedores (Admin)", expanded=False):
-                st.caption("Migração única do fornecedores.xlsx para o banco. Depois disso, cada loja edita o próprio cadastro em '📋 Gerenciar Fornecedores'.")
+                st.caption("Migração única do fornecedores.xlsx para o banco. Depois disso, cada loja edita o próprio cadastro em '📋 Gerenciar Promotores'.")
                 st.write(f"Registros no banco hoje: **{len(df_forn)}**")
                 if tabela_vazia:
                     if st.button("Importar fornecedores.xlsx para o banco", use_container_width=True, key="btn_migrar_forn"):
@@ -461,19 +461,32 @@ if check_password():
                     st.info("Migração já foi feita (tabela não está mais vazia).")
 
         st.markdown("---")
+        st.markdown('<div class="nav-label">Menu:</div>', unsafe_allow_html=True)
+
+        vista_atual = st.session_state.get("vista_central", "painel")
+
+        if st.button("🏠 Painel Principal", use_container_width=True, key="nav_painel",
+                     type="primary" if vista_atual == "painel" else "secondary"):
+            st.session_state["vista_central"] = "painel"
+            st.rerun()
+
+        if st.button("📋 Gerenciar Promotores", use_container_width=True, key="nav_gerenciar_forn",
+                     type="primary" if vista_atual == "gerenciar_forn" else "secondary"):
+            st.session_state["vista_central"] = "gerenciar_forn"
+            st.rerun()
 
         if not tabela_vazia:
-            with st.expander("⚙️ CADASTRO PROMOTOR", expanded=False):
+            with st.expander("🧑‍💼 Cadastro Facial", expanded=False):
                 st.caption("Registre novos rostos de forma segura via nuvem.")
                 lista_empresas_cadastro = sorted(df_forn[col_fornecedor].dropna().unique().tolist())
                 empresa_alvo = st.selectbox("1. Empresa:", lista_empresas_cadastro, index=None, placeholder="Escolha...", key="sb_cad_sidebar")
-                
+
                 if empresa_alvo is not None:
                     nome_digitado = st.text_input("2. Nome do Promotor:", placeholder="Digite o nome completo", key="txt_nome_sidebar").strip()
                     tel_opcional = st.text_input("3. Telefone (Opcional):", placeholder="(DDD) 00000-0000", key="txt_tel_sidebar").strip()
-                    
+
                     foto_gabarito = st.camera_input("4. Foto de perto (Gabarito)", key="cam_cad_sidebar")
-                    
+
                     st.markdown(
                         """
                         <div style="background-color:#14507F; padding:10px; border-radius:5px; height:130px; overflow-y:scroll; font-size:11px; color:#DCEBF7; border:1px solid #2A6693; margin-bottom:10px; line-height:1.4;">
@@ -482,13 +495,13 @@ if check_password():
                             Os dados biométricos serão armazenados de forma segura e jamais serão compartilhados com terceiros sem consentimento explícito.<br><br>
                             Declaro ciência e autorizo o uso da minha imagem.
                         </div>
-                        """, 
+                        """,
                         unsafe_allow_html=True
                     )
-                    
+
                     consentimento = st.checkbox("Termo assinado (LGPD)", key="chk_cad_sidebar")
                     botao_desabilitado = not (consentimento and len(nome_digitado) > 0)
-                    
+
                     if st.button(f"Salvar Promotor", use_container_width=True, disabled=botao_desabilitado, key="btn_cad_sidebar"):
                         if foto_gabarito is not None:
                             with st.spinner("Processando e salvando promotor..."):
@@ -496,24 +509,24 @@ if check_password():
                                     caminho_local_salvar = "upload_gabarito.jpg"
                                     with open(caminho_local_salvar, "wb") as f:
                                         f.write(foto_gabarito.getbuffer())
-                                        
+
                                     try:
                                         DeepFace.extract_faces(img_path=caminho_local_salvar, detector_backend='opencv')
                                     except:
                                         st.error("❌ Nenhum rosto nítido encontrado. Refaça de perto.")
                                         if os.path.exists(caminho_local_salvar): os.remove(caminho_local_salvar)
                                         st.stop()
-                                    
+
                                     url_gabarito_salvo = upload_para_imgbb(foto_gabarito.getvalue())
-                                    
+
                                     if url_gabarito_salvo:
                                         fuso_br = pytz.timezone('America/Sao_Paulo')
                                         agora_br = datetime.now(fuso_br)
-                                        
+
                                         # --- SUPABASE: ATUALIZAR GABARITO ---
                                         # Exclui o antigo (se houver) para evitar duplicatas da mesma empresa
                                         supabase.table("promot_biometria_gabaritos").delete().eq("Empresa", empresa_alvo).execute()
-                                        
+
                                         # Insere o novo
                                         novo_gabarito = {
                                             "Data_Cadastro": agora_br.strftime("%d/%m/%Y %H:%M:%S"),
@@ -523,31 +536,16 @@ if check_password():
                                             "Link_Gabarito": url_gabarito_salvo
                                         }
                                         supabase.table("promot_biometria_gabaritos").insert(novo_gabarito).execute()
-                                        
+
                                         st.success(f"✅ Biometria de {nome_digitado} salva!")
                                         if os.path.exists(caminho_local_salvar): os.remove(caminho_local_salvar)
                                         time.sleep(1.5)
                                         st.rerun()
                                     else:
                                         st.error("❌ Erro ao gerar link da imagem no ImgBB.")
-                                        
+
                                 except Exception as err:
                                     st.error(f"Erro no Processamento: {err}")
-
-        st.markdown("---")
-        st.markdown('<div class="nav-label">📂 NAVEGAÇÃO</div>', unsafe_allow_html=True)
-
-        vista_atual = st.session_state.get("vista_central", "painel")
-
-        if st.button("🏠 Painel Principal", use_container_width=True, key="nav_painel",
-                     type="primary" if vista_atual == "painel" else "secondary"):
-            st.session_state["vista_central"] = "painel"
-            st.rerun()
-
-        if st.button("📋 Gerenciar Fornecedores / Promotores", use_container_width=True, key="nav_gerenciar_forn",
-                     type="primary" if vista_atual == "gerenciar_forn" else "secondary"):
-            st.session_state["vista_central"] = "gerenciar_forn"
-            st.rerun()
 
     # --- FLUXO DA TELA CENTRAL (PAINEL E REGISTRO) ---
     if True:  # df_forn agora vem do Supabase e nunca é None (pode vir vazio)

@@ -381,7 +381,14 @@ if check_password():
         (tabela promot_fornecedores). Antes vinha de fornecedores.xlsx —
         agora a planilha só é usada na migração inicial (uma vez)."""
         try:
-            resp = supabase.table("promot_fornecedores").select("*").execute()
+            # .order("id") é essencial: sem isso o Postgres pode devolver as
+            # linhas em ordem diferente a cada consulta, e como o data_editor
+            # da tela de Gerenciar Fornecedores rastreia edições por POSIÇÃO
+            # da linha (não pelo ID), uma reordenação entre a edição e o
+            # clique em Salvar faz o app achar que uma linha "sumiu" e apagar
+            # ela por engano (foi o que aconteceu com Aica Cogumelo e o
+            # Alimentos Wilson na loja 3)
+            resp = supabase.table("promot_fornecedores").select("*").order("id").execute()
             df = pd.DataFrame(resp.data)
         except Exception as e:
             st.error(f"Erro ao carregar fornecedores do banco: {e}")
@@ -673,14 +680,21 @@ if check_password():
 
                 colunas_editor = [col_id, col_cod, col_fornecedor, col_marcas,
                                    col_comprador, col_promotor, col_telefone, col_frequencia]
-                df_editor_base = (
-                    df_loja[colunas_editor]
-                    .copy()
-                    .sort_values(by=col_fornecedor)
-                    .reset_index(drop=True)
-                )
+                df_editor_base = df_loja[colunas_editor].copy()
                 # id vazio ("") vira NaN pra dar pra distinguir linha nova de linha existente
                 df_editor_base[col_id] = pd.to_numeric(df_editor_base[col_id], errors="coerce")
+                # Ordena por fornecedor com o id como critério de desempate e
+                # sort estável (mergesort): garante que a MESMA linha caia
+                # sempre na MESMA posição entre uma execução e outra — o
+                # data_editor rastreia edições por posição, então qualquer
+                # variação de ordem entre a edição e o Salvar faz o app
+                # aplicar a mudança na linha errada (ou até apagar uma linha
+                # por engano, como aconteceu com Aica Cogumelo/Alimentos Wilson)
+                df_editor_base = (
+                    df_editor_base
+                    .sort_values(by=[col_fornecedor, col_id], kind="mergesort")
+                    .reset_index(drop=True)
+                )
 
                 df_editado = st.data_editor(
                     df_editor_base,

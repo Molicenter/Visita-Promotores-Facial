@@ -135,7 +135,10 @@ def check_password():
             with st.form("form_login_admin", clear_on_submit=False):
                 opcoes_usuarios = ["Selecione...", "Administrador"] + [f"Loja {str(i).zfill(2)}" for i in range(1, 15)]
                 usuario_selecionado = st.selectbox("Usuário de acesso:", opcoes_usuarios)
-                senha = st.text_input("Senha", type="password")
+                # autocomplete="current-password" evita o popup do Google Password
+                # Manager sugerindo criar uma senha nova (ele entende que é login
+                # numa conta já existente, não cadastro) — mesmo ajuste dos outros apps
+                senha = st.text_input("Senha", type="password", autocomplete="current-password")
                 
                 st.write("") 
                 
@@ -305,32 +308,40 @@ def check_password():
 if check_password():
     injetar_css_moderno() 
 
-    @st.cache_data
+    # --- COLUNAS PADRÃO DA TABELA promot_fornecedores (Supabase) ---
+    col_id = "id"
+    col_cod = "cod"
+    col_fornecedor = "fornecedor"
+    col_marcas = "marca"
+    col_comprador = "comprador"
+    col_promotor = "promotor"
+    col_telefone = "telefone"
+    col_frequencia = "frequencia_visita"
+    col_loja = "loja"
+    COLUNAS_FORN = [col_id, col_cod, col_fornecedor, col_marcas, col_comprador,
+                    col_promotor, col_telefone, col_frequencia, col_loja]
+
+    @st.cache_data(ttl=30)
     def carregar_fornecedores():
-        arquivo = 'fornecedores.xlsx'
-        if os.path.exists(arquivo):
-            try:
-                df = pd.read_excel(arquivo, engine='openpyxl').dropna(how='all')
-                
-                # ---> SOLUÇÃO: Substitui valores NaN (células vazias) por string vazia
-                df = df.fillna("") 
-                
-                df.columns = [str(col).strip() for col in df.columns]
-                return df
-            except Exception as e:
-                st.error(f"Erro ao ler Excel: {e}")
-        return None
+        """Carrega o cadastro de fornecedores/promotores direto do Supabase
+        (tabela promot_fornecedores). Antes vinha de fornecedores.xlsx —
+        agora a planilha só é usada na migração inicial (uma vez)."""
+        try:
+            resp = supabase.table("promot_fornecedores").select("*").execute()
+            df = pd.DataFrame(resp.data)
+        except Exception as e:
+            st.error(f"Erro ao carregar fornecedores do banco: {e}")
+            df = pd.DataFrame()
+
+        if df.empty:
+            df = pd.DataFrame(columns=COLUNAS_FORN)
+        for c in COLUNAS_FORN:
+            if c not in df.columns:
+                df[c] = None
+        return df.fillna("")
 
     df_forn = carregar_fornecedores()
-
-    if df_forn is not None:
-        col_fornecedor = df_forn.columns[1]  
-        col_marcas = df_forn.columns[2]      
-        col_comprador = df_forn.columns[3]    
-        col_promotor = df_forn.columns[4]     
-        col_telefone = df_forn.columns[5]     
-        col_frequencia = df_forn.columns[6] 
-        col_loja = df_forn.columns[-1]
+    tabela_vazia = df_forn.empty
 
     with st.sidebar:
         st.header("🎛️ Menu de Controle")
@@ -345,7 +356,52 @@ if check_password():
                 
         st.markdown("---")
         
-        if df_forn is not None:
+        if st.session_state.get("perfil") == "analista":
+            with st.expander("🗄️ Base de Fornecedores (Admin)", expanded=False):
+                st.caption("Migração única do fornecedores.xlsx para o banco. Depois disso, cada loja edita o próprio cadastro em '📋 Gerenciar Fornecedores'.")
+                st.write(f"Registros no banco hoje: **{len(df_forn)}**")
+                if tabela_vazia:
+                    if st.button("Importar fornecedores.xlsx para o banco", use_container_width=True, key="btn_migrar_forn"):
+                        try:
+                            with st.spinner("Importando planilha para o Supabase..."):
+                                check = supabase.table("promot_fornecedores").select(col_id).limit(1).execute()
+                                if check.data:
+                                    st.warning("A tabela já tem dados — migração não executada para evitar duplicar.")
+                                else:
+                                    df_xlsx = pd.read_excel("fornecedores.xlsx", engine="openpyxl").dropna(how="all").fillna("")
+                                    df_xlsx.columns = [str(c).strip() for c in df_xlsx.columns]
+                                    registros = []
+                                    for _, r in df_xlsx.iterrows():
+                                        cod_bruto = r.iloc[0]
+                                        # pandas costuma ler a coluna Cod como float (por causa
+                                        # das células vazias) — tira o ".0" sobrando nesse caso
+                                        if isinstance(cod_bruto, float) and cod_bruto.is_integer():
+                                            cod_val = str(int(cod_bruto))
+                                        else:
+                                            cod_val = str(cod_bruto).strip()
+                                        registros.append({
+                                            "cod": cod_val if cod_val else None,
+                                            "fornecedor": str(r.iloc[1]).strip(),
+                                            "marca": str(r.iloc[2]).strip(),
+                                            "comprador": str(r.iloc[3]).strip(),
+                                            "promotor": str(r.iloc[4]).strip(),
+                                            "telefone": str(r.iloc[5]).strip(),
+                                            "frequencia_visita": str(r.iloc[6]).strip(),
+                                            "loja": int(r.iloc[7]),
+                                        })
+                                    supabase.table("promot_fornecedores").insert(registros).execute()
+                                    st.success(f"✅ {len(registros)} registros importados!")
+                                    carregar_fornecedores.clear()
+                                    time.sleep(1.5)
+                                    st.rerun()
+                        except Exception as e:
+                            st.error(f"Erro na migração: {e}")
+                else:
+                    st.info("Migração já foi feita (tabela não está mais vazia).")
+
+        st.markdown("---")
+
+        if not tabela_vazia:
             with st.expander("⚙️ CADASTRO PROMOTOR", expanded=False):
                 st.caption("Registre novos rostos de forma segura via nuvem.")
                 lista_empresas_cadastro = sorted(df_forn[col_fornecedor].dropna().unique().tolist())
@@ -418,18 +474,25 @@ if check_password():
                                     st.error(f"Erro no Processamento: {err}")
 
     # --- FLUXO DA TELA CENTRAL (PAINEL E REGISTRO) ---
-    if df_forn is not None:
+    if True:  # df_forn agora vem do Supabase e nunca é None (pode vir vazio)
         fuso_br = pytz.timezone('America/Sao_Paulo')
         agora = datetime.now(fuso_br)
         dias_map = {0: 'SEG', 1: 'TER', 2: 'QUA', 3: 'QUI', 4: 'SEX', 5: 'SAB', 6: 'DOM'}
         dia_hoje = dias_map[agora.weekday()]
 
-        lista_lojas = sorted(df_forn[col_loja].dropna().astype(str).unique().tolist())
+        # Lojas 01 a 14 (mesmo intervalo do login) + qualquer valor extra já
+        # existente no banco, pra loja aparecer no seletor do admin mesmo
+        # antes de ter o primeiro fornecedor cadastrado
+        lista_lojas = sorted(set([str(i) for i in range(1, 15)]) |
+                             set(df_forn[col_loja].dropna().astype(str).unique().tolist()),
+                             key=lambda x: int(x) if x.isdigit() else 999)
         if st.session_state.get("perfil") == "analista":
             loja_sel = st.selectbox("Selecione a Loja:", lista_lojas, index=None, placeholder="Escolha...")
         else:
+            # Loja do gerente vem direto do login — não depende de já ter
+            # fornecedor cadastrado (antes, uma loja "zerada" ficava sem acesso)
             id_g = st.session_state.get("loja_id", "")
-            loja_sel = next((l for l in lista_lojas if l.startswith(id_g) or l.startswith(id_g.zfill(2))), None)
+            loja_sel = str(int(id_g)) if id_g.isdigit() else None
             st.info(f"📍 **Loja Autenticada: {loja_sel}**")
 
         df_hoje = pd.DataFrame()
@@ -467,6 +530,103 @@ if check_password():
                 st.dataframe(tabela_exibicao, use_container_width=True, hide_index=True)
             else:
                 st.warning("Nenhum fornecedor programado para hoje.")
+
+            with st.expander("📋 Gerenciar Fornecedores / Promotores desta loja", expanded=False):
+                st.caption(
+                    "Adicione, edite ou remova fornecedores e promotores da loja "
+                    f"{loja_sel}. Clique em uma célula para editar; use a linha em "
+                    "branco no fim da tabela para adicionar um novo fornecedor; "
+                    "selecione uma linha e aperte a lixeira pra remover. Depois "
+                    "clique em **Salvar alterações**."
+                )
+
+                colunas_editor = [col_id, col_cod, col_fornecedor, col_marcas,
+                                   col_comprador, col_promotor, col_telefone, col_frequencia]
+                df_editor_base = (
+                    df_loja[colunas_editor]
+                    .copy()
+                    .sort_values(by=col_fornecedor)
+                    .reset_index(drop=True)
+                )
+                # id vazio ("") vira NaN pra dar pra distinguir linha nova de linha existente
+                df_editor_base[col_id] = pd.to_numeric(df_editor_base[col_id], errors="coerce")
+
+                df_editado = st.data_editor(
+                    df_editor_base,
+                    num_rows="dynamic",
+                    hide_index=True,
+                    use_container_width=True,
+                    key=f"editor_fornecedores_{loja_sel}",
+                    column_config={
+                        col_id: st.column_config.NumberColumn("ID", disabled=True, help="Gerado automaticamente pelo banco"),
+                        col_cod: st.column_config.TextColumn("Código"),
+                        col_fornecedor: st.column_config.TextColumn("Fornecedor*", required=True),
+                        col_marcas: st.column_config.TextColumn("Marca(s)"),
+                        col_comprador: st.column_config.TextColumn("Comprador"),
+                        col_promotor: st.column_config.TextColumn("Promotor"),
+                        col_telefone: st.column_config.TextColumn("Telefone"),
+                        col_frequencia: st.column_config.TextColumn("Frequência", help="Ex: SEG/QUA/SEX"),
+                    },
+                )
+
+                if st.button("💾 Salvar alterações", type="primary", key=f"btn_salvar_forn_{loja_sel}"):
+                    try:
+                        campos = [col_cod, col_fornecedor, col_marcas, col_comprador,
+                                  col_promotor, col_telefone, col_frequencia]
+
+                        ids_originais = set(df_editor_base[col_id].dropna().astype(int))
+                        ids_editados = set(df_editado[col_id].dropna().astype(int))
+
+                        n_removidos, n_novos, n_alterados = 0, 0, 0
+
+                        # Linhas que existiam antes e sumiram no editor → deletar
+                        for _id in (ids_originais - ids_editados):
+                            supabase.table("promot_fornecedores").delete().eq(col_id, int(_id)).execute()
+                            n_removidos += 1
+
+                        # Linhas sem id (adicionadas na linha em branco do editor) → inserir
+                        novos = df_editado[df_editado[col_id].isna()]
+                        for _, row in novos.iterrows():
+                            if str(row[col_fornecedor]).strip() == "":
+                                continue
+                            cod_val = str(row[col_cod]).strip()
+                            supabase.table("promot_fornecedores").insert({
+                                "loja": int(loja_sel),
+                                col_cod: cod_val if cod_val else None,
+                                col_fornecedor: str(row[col_fornecedor]).strip(),
+                                col_marcas: str(row[col_marcas]).strip(),
+                                col_comprador: str(row[col_comprador]).strip(),
+                                col_promotor: str(row[col_promotor]).strip(),
+                                col_telefone: str(row[col_telefone]).strip(),
+                                col_frequencia: str(row[col_frequencia]).strip(),
+                            }).execute()
+                            n_novos += 1
+
+                        # Linhas com id que continuam existindo → checar se mudou algo e atualizar
+                        base_idx = df_editor_base.set_index(col_id)
+                        edit_idx = df_editado.dropna(subset=[col_id]).astype({col_id: int}).set_index(col_id)
+                        for _id in (ids_originais & ids_editados):
+                            antes, depois = base_idx.loc[_id], edit_idx.loc[_id]
+                            if any(str(antes[c]) != str(depois[c]) for c in campos):
+                                cod_val = str(depois[col_cod]).strip()
+                                supabase.table("promot_fornecedores").update({
+                                    col_cod: cod_val if cod_val else None,
+                                    col_fornecedor: str(depois[col_fornecedor]).strip(),
+                                    col_marcas: str(depois[col_marcas]).strip(),
+                                    col_comprador: str(depois[col_comprador]).strip(),
+                                    col_promotor: str(depois[col_promotor]).strip(),
+                                    col_telefone: str(depois[col_telefone]).strip(),
+                                    col_frequencia: str(depois[col_frequencia]).strip(),
+                                    "atualizado_em": agora.strftime("%Y-%m-%d %H:%M:%S"),
+                                }).eq(col_id, int(_id)).execute()
+                                n_alterados += 1
+
+                        st.success(f"✅ Salvo! {n_novos} novo(s), {n_alterados} alterado(s), {n_removidos} removido(s).")
+                        carregar_fornecedores.clear()
+                        time.sleep(1.5)
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Erro ao salvar alterações: {e}")
 
             if "form_count" not in st.session_state:
                 st.session_state["form_count"] = 0
@@ -525,5 +685,3 @@ if check_password():
                                     st.error("❌ Falha no upload da foto. Verifique a chave da API do ImgBB.")
                         except Exception as e:
                             st.error(f"Erro ao salvar: {e}")
-    else:
-        st.error("Erro: Arquivo 'fornecedores.xlsx' não encontrado.")

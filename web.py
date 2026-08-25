@@ -721,11 +721,19 @@ if check_password():
                         ids_editados = set(df_editado[col_id].dropna().astype(int))
 
                         n_removidos, n_novos, n_alterados = 0, 0, 0
+                        # Guarda avisos de operações que o Supabase aceitou sem erro,
+                        # mas que não devolveram a linha confirmada (ex.: bloqueadas
+                        # por Row Level Security) — sem isso, o app mostrava "Salvo!"
+                        # mesmo quando nada tinha sido gravado de fato.
+                        erros = []
 
                         # Linhas que existiam antes e sumiram no editor → deletar
                         for _id in (ids_originais - ids_editados):
-                            supabase.table("promot_fornecedores").delete().eq(col_id, int(_id)).execute()
-                            n_removidos += 1
+                            resp = supabase.table("promot_fornecedores").delete().eq(col_id, int(_id)).execute()
+                            if not resp.data:
+                                erros.append(f"Remoção do ID {_id} não foi confirmada pelo banco (possível bloqueio de RLS).")
+                            else:
+                                n_removidos += 1
 
                         # Linhas sem id (adicionadas na linha em branco do editor) → inserir
                         novos = df_editado[df_editado[col_id].isna()]
@@ -733,7 +741,7 @@ if check_password():
                             if str(row[col_fornecedor]).strip() == "":
                                 continue
                             cod_val = str(row[col_cod]).strip()
-                            supabase.table("promot_fornecedores").insert({
+                            resp = supabase.table("promot_fornecedores").insert({
                                 "loja": int(loja_sel),
                                 col_cod: cod_val if cod_val else None,
                                 col_fornecedor: str(row[col_fornecedor]).strip(),
@@ -743,7 +751,10 @@ if check_password():
                                 col_telefone: str(row[col_telefone]).strip(),
                                 col_frequencia: str(row[col_frequencia]).strip(),
                             }).execute()
-                            n_novos += 1
+                            if not resp.data:
+                                erros.append(f"'{row[col_fornecedor]}' não foi confirmado pelo banco (possível bloqueio de RLS) — não contabilizado como salvo.")
+                            else:
+                                n_novos += 1
 
                         # Linhas com id que continuam existindo → checar se mudou algo e atualizar
                         base_idx = df_editor_base.set_index(col_id)
@@ -752,7 +763,7 @@ if check_password():
                             antes, depois = base_idx.loc[_id], edit_idx.loc[_id]
                             if any(str(antes[c]) != str(depois[c]) for c in campos):
                                 cod_val = str(depois[col_cod]).strip()
-                                supabase.table("promot_fornecedores").update({
+                                resp = supabase.table("promot_fornecedores").update({
                                     col_cod: cod_val if cod_val else None,
                                     col_fornecedor: str(depois[col_fornecedor]).strip(),
                                     col_marcas: str(depois[col_marcas]).strip(),
@@ -762,9 +773,21 @@ if check_password():
                                     col_frequencia: str(depois[col_frequencia]).strip(),
                                     "atualizado_em": agora.strftime("%Y-%m-%d %H:%M:%S"),
                                 }).eq(col_id, int(_id)).execute()
-                                n_alterados += 1
+                                if not resp.data:
+                                    erros.append(f"Alteração do ID {_id} não foi confirmada pelo banco (possível bloqueio de RLS).")
+                                else:
+                                    n_alterados += 1
 
-                        st.success(f"✅ Salvo! {n_novos} novo(s), {n_alterados} alterado(s), {n_removidos} removido(s).")
+                        if n_novos or n_alterados or n_removidos:
+                            st.success(f"✅ Salvo! {n_novos} novo(s), {n_alterados} alterado(s), {n_removidos} removido(s).")
+                        if erros:
+                            st.error(
+                                "⚠️ O Supabase não confirmou " + str(len(erros)) +
+                                " operação(ões) — nada foi gravado para elas, mesmo sem erro de conexão:\n\n"
+                                + "\n".join(f"- {e}" for e in erros)
+                                + "\n\nVerifique as políticas de Row Level Security (RLS) da tabela "
+                                  "promot_fornecedores no Supabase (Table Editor / Logs)."
+                            )
                         carregar_fornecedores.clear()
                         time.sleep(1.5)
                         st.rerun()

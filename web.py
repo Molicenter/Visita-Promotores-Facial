@@ -388,8 +388,34 @@ if check_password():
             # clique em Salvar faz o app achar que uma linha "sumiu" e apagar
             # ela por engano (foi o que aconteceu com Aica Cogumelo e o
             # Alimentos Wilson na loja 3)
-            resp = supabase.table("promot_fornecedores").select("*").order("id").execute()
-            df = pd.DataFrame(resp.data)
+            #
+            # Busca paginada: a API do Supabase corta cada resposta em
+            # "Max Rows" linhas (padrão 1000) quando não se usa .range().
+            # Sem isso, assim que a tabela passa de 1000 registros, os
+            # fornecedores mais novos (id mais alto) somem silenciosamente
+            # da leitura — foi exatamente o que aconteceu com a Agência
+            # Promarket quando a tabela chegou a 1068 linhas. Paginando em
+            # blocos até vir uma página incompleta, a tabela inteira é
+            # carregada não importa o tamanho que ela alcance.
+            todas_linhas = []
+            tamanho_pagina = 1000
+            pagina = 0
+            while True:
+                inicio = pagina * tamanho_pagina
+                fim = inicio + tamanho_pagina - 1
+                resp = (
+                    supabase.table("promot_fornecedores")
+                    .select("*")
+                    .order("id")
+                    .range(inicio, fim)
+                    .execute()
+                )
+                lote = resp.data or []
+                todas_linhas.extend(lote)
+                if len(lote) < tamanho_pagina:
+                    break
+                pagina += 1
+            df = pd.DataFrame(todas_linhas)
         except Exception as e:
             st.error(f"Erro ao carregar fornecedores do banco: {e}")
             df = pd.DataFrame()

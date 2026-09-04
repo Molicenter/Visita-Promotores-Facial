@@ -1,23 +1,24 @@
 [theme]
 base = "light"
-primaryColor = "#E5007D"                        # magenta — botões primários, radio, foco
-backgroundColor = "#FFFFFF"                      # área principal
-secondaryBackgroundColor = "#F2F6FA"             # cinza-azulado — inputs, câmera, zebra
+primaryColor = "#E5007D"                    # magenta — botões primários, radio, foco
+backgroundColor = "#FFFFFF"                 # área principal
+secondaryBackgroundColor = "#F2F6FA"        # cinza-azulado — inputs, câmera, zebra
 textColor = "#22303C"
 linkColor = "#0093E9"
 borderColor = "#D5E0EA"
 dataframeBorderColor = "#C4D4E0"
-dataframeHeaderBackgroundColor = "#DCEBF7"       # azul-claro: cabeçalho legível
+dataframeHeaderBackgroundColor = "#DCEBF7"  # azul-claro: cabeçalho legível
 font = "sans serif"
- 
+
 [theme.sidebar]
-backgroundColor = "#0B3D63"                       # sidebar azul institucional
-secondaryBackgroundColor = "#14507F"             # inputs dentro da sidebar
+backgroundColor = "#0B3D63"                 # sidebar azul institucional
+secondaryBackgroundColor = "#14507F"        # inputs dentro da sidebar
 textColor = "#FFFFFF"
 primaryColor = "#4FC3F7"
 borderColor = "#2A6693"
- 
+
 [server]
 headless = true
 enableCORS = false
 enableXsrfProtection = false
+fileWatcherType = "none"

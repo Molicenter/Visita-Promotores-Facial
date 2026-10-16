@@ -17,7 +17,7 @@ const LOJAS = Array.from({ length: 8 }, (_, i) => String(i + 1).padStart(2, "0")
 let sessao = lerSessao();     // { token, usuario, email, perfil, loja }
 let lojaAtual = null;         // número (1..8)
 let dados = { fornecedores: [], visitas: [], gabaritos: [], agora: "" };
-let paginaAtual = "checkin";
+let paginaAtual = "agenda";
 let filtroAgenda = "todos";
 let fornEditando = null;
 
@@ -227,7 +227,7 @@ async function iniciarApp() {
   }
   $("#pilula-data").textContent = hojeSP().curto;
 
-  irPara("checkin");
+  irPara("agenda");
   const ok = await recarregar(true);
   if (!ok) return;
   prepararFacial();          // modelos + câmera (em segundo plano)

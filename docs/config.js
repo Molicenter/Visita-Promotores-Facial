@@ -9,5 +9,5 @@ window.CONFIG = {
   LIMIAR_ROSTO: 0.5,
   // rosto precisa ocupar pelo menos esta fração da largura da imagem (antes: 200 px de 640)
   TAMANHO_MIN_ROSTO: 0.28,
-  VERSAO: "1.0.0",
+  VERSAO: "1.0.2",
 };

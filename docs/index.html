@@ -6,7 +6,7 @@
   <meta name="theme-color" content="#0B3D63">
   <title>Registro Promotores · Molicenter</title>
   <link rel="icon" href="logo.png">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=1.0.2">
 </head>
 <body>
   <!-- =================== LOGIN =================== -->
@@ -44,12 +44,12 @@
       </div>
       <nav class="nav" id="nav">
         <div class="nav-rotulo">Dia a dia</div>
-        <button data-pg="checkin" class="ativo" type="button">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M7.5 17a5 5 0 0 1 9 0"/></svg>
-          Check-in facial</button>
-        <button data-pg="agenda" type="button">
+        <button data-pg="agenda" class="ativo" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="m9 15 2 2 4-4"/></svg>
           Agenda de hoje <span class="contador num" id="nav-pendentes" hidden>0</span></button>
+        <button data-pg="checkin" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M7.5 17a5 5 0 0 1 9 0"/></svg>
+          Check-in facial</button>
         <button data-pg="manual" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
           Registro manual</button>
@@ -71,7 +71,7 @@
     <div class="principal">
       <header class="topo">
         <div class="topo-titulo">
-          <h2 id="pg-titulo">Check-in facial</h2>
+          <h2 id="pg-titulo">Agenda de hoje</h2>
           <p id="pg-sub"></p>
         </div>
         <div class="pilulas">
@@ -82,7 +82,7 @@
 
       <main class="conteudo">
         <!-- ---------- CHECK-IN FACIAL ---------- -->
-        <section class="pagina" id="pg-checkin">
+        <section class="pagina" id="pg-checkin" hidden>
           <div class="grade-2">
             <div class="cartao">
               <div class="camera" id="camera">
@@ -119,7 +119,7 @@
         </section>
 
         <!-- ---------- AGENDA ---------- -->
-        <section class="pagina" id="pg-agenda" hidden>
+        <section class="pagina" id="pg-agenda">
           <div class="kpis" id="kpis"></div>
           <div class="cartao">
             <div class="barra-filtros">
@@ -223,7 +223,7 @@
   <div id="carregando" class="carregando" hidden><div class="spinner"></div></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
-  <script src="config.js"></script>
-  <script src="app.js"></script>
+  <script src="config.js?v=1.0.2"></script>
+  <script src="app.js?v=1.0.2"></script>
 </body>
 </html>

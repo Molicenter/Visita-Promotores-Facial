@@ -1,5 +1,9 @@
 /* Registro de Promotores — Molicenter
    Layout: barra lateral azul fixa + área de trabalho clara com cartões; desktop primeiro, empilha no celular */
+[hidden] { display: none !important; }
+html, body { margin: 0; }
+img { max-width: 100%; }
+body { -webkit-font-smoothing: antialiased; }
 :root {
   --azul: #0B3D63;
   --azul-escuro: #072A45;

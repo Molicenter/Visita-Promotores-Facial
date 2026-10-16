@@ -381,8 +381,8 @@ function renderAgenda() {
   const linhas = dia.filter((f) => {
     const r = visitaDe(f.fornecedor);
     if (filtroAgenda === "pend" && r) return false;
-    if (filtroAgenda === "ok" && !r) return false;
     if (filtroAgenda === "naloja" && !(r && !temSaida(r))) return false;
+    if (filtroAgenda === "saiu" && !(r && temSaida(r))) return false;
     return !q || norm([f.fornecedor, f.marca, f.promotor].join(" ")).includes(q);
   });
   $("#tb-agenda").innerHTML = linhas.length ? linhas.map((f) => {

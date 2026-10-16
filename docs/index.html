@@ -10,7 +10,7 @@
     // tema: claro por padrão; cada computador lembra a escolha
     try { var t = localStorage.getItem("promot_web_tema"); if (t === "dark" || t === "light") document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=1.0.5">
+  <link rel="stylesheet" href="style.css?v=1.0.7">
 </head>
 <body>
   <!-- =================== LOGIN =================== -->
@@ -201,7 +201,20 @@
                 <svg class="silhueta" viewBox="0 0 200 220" aria-hidden="true" style="width:34%"><circle cx="100" cy="78" r="46" fill="#5C7BB8"/><path d="M20 220c6-52 40-80 80-80s74 28 80 80Z" fill="#5C7BB8"/></svg>
                 <video id="video-cad" autoplay muted playsinline></video>
                 <div class="moldura" style="width:30%"></div>
-                <div class="camera-dica">A foto é tirada de perto, com o rosto no contorno</div>
+                <div class="camera-dica" id="dica-cad">Posicione o rosto do promotor no contorno</div>
+              </div>
+              <div class="medidor" style="margin-top:0">
+                <div class="medidor-linha"><span>Distância do rosto</span><span id="medidor-txt-cad">—</span></div>
+                <div class="barra"><i id="medidor-barra-cad"></i></div>
+              </div>
+              <div class="acoes-foto">
+                <button class="btn btn-primario" type="button" id="btn-tirar">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+                  Tirar foto</button>
+              </div>
+              <div class="captura-previa" id="captura" hidden>
+                <img id="captura-img" alt="Foto tirada do promotor">
+                <div><span id="captura-txt"></span><br><button class="btn btn-texto" type="button" id="btn-refazer" style="padding-left:0">Tirar outra foto</button></div>
               </div>
               <div class="campo"><span>Empresa</span><select id="fac-empresa" aria-label="Empresa"></select></div>
               <div class="linha-2">
@@ -214,7 +227,8 @@
               </div>
               <label class="marcar"><input type="checkbox" id="fac-lgpd"> O promotor leu e assinou o termo</label>
               <p class="erro" id="fac-erro" hidden></p>
-              <button class="btn btn-primario" type="submit" id="btn-facial" disabled>Tirar foto e salvar</button>
+              <p class="dica" id="fac-falta"></p>
+              <button class="btn btn-primario" type="submit" id="btn-facial" disabled>Salvar cadastro</button>
             </form>
             <div class="cartao">
               <h3>Rostos cadastrados <small class="num" id="qtd-gab"></small></h3>
@@ -232,7 +246,7 @@
   <div id="carregando" class="carregando" hidden><div class="spinner"></div></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
-  <script src="config.js?v=1.0.5"></script>
-  <script src="app.js?v=1.0.5"></script>
+  <script src="config.js?v=1.0.7"></script>
+  <script src="app.js?v=1.0.7"></script>
 </body>
 </html>

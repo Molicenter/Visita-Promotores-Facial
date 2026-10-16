@@ -685,21 +685,36 @@ function pararCamera() {
 }
 $("#btn-ligar-camera").addEventListener("click", ligarCamera);
 
-function medidor(proporcao) {
-  const alvo = CFG.TAMANHO_MIN_ROSTO;
+function medidor(proporcao, alvo = CFG.TAMANHO_MIN_ROSTO, sufixo = "") {
   const pct = Math.max(0, Math.min(100, (proporcao / alvo) * 100));
-  $("#medidor-barra").style.width = pct + "%";
-  $("#medidor-barra").style.background = pct >= 100 ? "var(--verde)" : "var(--magenta)";
-  $("#medidor-txt").textContent = proporcao <= 0 ? "Sem rosto" : pct >= 100 ? "Distância boa" : pct >= 65 ? "Quase lá" : "Muito longe";
+  const barra = $("#medidor-barra" + sufixo), txt = $("#medidor-txt" + sufixo);
+  if (!barra || !txt) return;
+  barra.style.width = pct + "%";
+  barra.style.background = pct >= 100 ? "var(--verde)" : "var(--magenta)";
+  txt.textContent = proporcao <= 0 ? "Sem rosto" : pct >= 100 ? "Distância boa" : pct >= 65 ? "Quase lá" : "Muito longe";
 }
 
 function iniciarLoop() {
   clearTimeout(facial.timer);
   const passo = async () => {
-    try { await verificarQuadro(); } catch { /* quadro ruim: tenta o próximo */ }
+    try { if (paginaAtual === "facial") await verificarQuadroCadastro(); else await verificarQuadro(); } catch { /* quadro ruim: tenta o próximo */ }
     facial.timer = setTimeout(passo, 300);
   };
   passo();
+}
+
+// tela de Cadastro facial: só mostra a distância, sem registrar nada
+let ultimoCadastroOk = false;
+async function verificarQuadroCadastro() {
+  const v = $("#video-cad");
+  if (!sessao || !facial.modelos || !facial.stream || cadastrando || document.hidden || v.readyState < 2) return;
+  const det = await faceapi.detectSingleFace(v, opcoesRapidas());
+  const prop = det ? det.box.width / v.videoWidth : 0;
+  medidor(prop, TAMANHO_CADASTRO, "-cad");
+  ultimoCadastroOk = prop >= TAMANHO_CADASTRO;
+  $("#camera-cad").classList.toggle("ok", ultimoCadastroOk);
+  $("#dica-cad").textContent = !det ? "Posicione o rosto do promotor no contorno"
+    : ultimoCadastroOk ? "Rosto bem posicionado, pode tirar a foto" : "Peça para chegar um pouco mais perto";
 }
 
 async function verificarQuadro() {
@@ -833,7 +848,13 @@ function renderFacial() {
   validarFacial();
 }
 function validarFacial() {
-  $("#btn-facial").disabled = !($("#fac-empresa").value && $("#fac-nome").value.trim() && $("#fac-lgpd").checked);
+  const falta = [];
+  if (!fotoCadastro) falta.push("tirar a foto");
+  if (!$("#fac-empresa").value) falta.push("escolher a empresa");
+  if (!$("#fac-nome").value.trim()) falta.push("o nome do promotor");
+  if (!$("#fac-lgpd").checked) falta.push("marcar o termo");
+  $("#btn-facial").disabled = falta.length > 0;
+  $("#fac-falta").textContent = falta.length ? "Para salvar, falta: " + falta.join(", ") + "." : "";
 }
 ["change", "input"].forEach((ev) => $("#form-facial").addEventListener(ev, validarFacial));
 $("#fac-empresa").addEventListener("change", () => {
@@ -843,38 +864,83 @@ $("#fac-empresa").addEventListener("change", () => {
   validarFacial();
 });
 
-$("#form-facial").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  const erro = $("#fac-erro"); erro.hidden = true;
-  const mostrarErro = (m) => { erro.textContent = m; erro.hidden = false; };
-  const v = $("#video-cad");
-  if (!facial.stream || v.readyState < 2) return mostrarErro("Ligue a câmera primeiro (permita o acesso no navegador).");
-  const btn = $("#btn-facial"); btn.disabled = true; btn.textContent = "Lendo o rosto...";
+// cadastro aceita o rosto um pouco mais longe que o check-in (o Streamlit não exigia distância no cadastro)
+const TAMANHO_CADASTRO = Math.max(0.10, CFG.TAMANHO_MIN_ROSTO * 0.6);
+let cadastrando = false;
+async function lerRosto(fonte) {
+  // detector preciso primeiro; se não achar, tenta o rápido com resolução maior
+  let det = await faceapi.detectSingleFace(fonte, opcoesPrecisas()).withFaceLandmarks().withFaceDescriptor();
+  if (!det) det = await faceapi.detectSingleFace(fonte, new faceapi.TinyFaceDetectorOptions({ inputSize: 512, scoreThreshold: 0.4 })).withFaceLandmarks().withFaceDescriptor();
+  return det;
+}
+// foto do cadastro: tirada no botão "Tirar foto", conferida na hora e guardada até salvar
+let fotoCadastro = null;   // { foto: dataURL, descritor: Float32Array }
+function mostrarCaptura(foto, ok, texto) {
+  const box = $("#captura");
+  $("#captura-img").src = foto;
+  $("#captura-txt").textContent = texto;
+  box.classList.toggle("ok", ok); box.classList.toggle("falha", !ok);
+  box.hidden = false;
+  $("#btn-tirar").hidden = true;
+}
+function limparCaptura() {
+  fotoCadastro = null;
+  $("#captura").hidden = true;
+  $("#btn-tirar").hidden = false;
+  validarFacial();
+}
+$("#btn-refazer").addEventListener("click", limparCaptura);
+$("#btn-tirar").addEventListener("click", async () => {
+  const v = $("#video-cad"), btn = $("#btn-tirar");
+  if (!facial.stream || v.readyState < 2) {
+    ligarCamera();
+    return toast("A câmera não está ligada. Permita o acesso à câmera no ícone da barra de endereço e tente de novo.", "erro");
+  }
+  btn.disabled = true; btn.lastChild.textContent = " Lendo o rosto...";
+  cadastrando = true;
   try {
     await carregarModelos();
     const foto = reduzirImagem(v, 960, 0.9);
     const img = await carregarImagem(foto);
-    const det = await faceapi.detectSingleFace(img, opcoesPrecisas()).withFaceLandmarks().withFaceDescriptor();
-    if (!det) return mostrarErro("Nenhum rosto nítido encontrado. Peça para o promotor olhar de frente para a câmera.");
-    if (det.detection.box.width / img.width < CFG.TAMANHO_MIN_ROSTO * 0.9) return mostrarErro("Rosto muito distante. Peça para o promotor chegar mais perto da câmera.");
+    const det = await lerRosto(img);
+    if (!det) return mostrarCaptura(foto, false, "Não encontrei um rosto. Peça para olhar de frente, sem boné ou óculos escuros, com o rosto iluminado.");
+    if (det.detection.box.width / img.width < TAMANHO_CADASTRO) return mostrarCaptura(foto, false, "Rosto muito distante. Peça para chegar mais perto, até a barra de distância ficar verde.");
     const empresa = $("#fac-empresa").value;
-    // o mesmo rosto já cadastrado em outra empresa? avisa para não confundir o reconhecimento
     const parecido = facial.rostos.find((r) => r.empresa !== empresa && faceapi.euclideanDistance(det.descriptor, r.descritor) < CFG.LIMIAR_ROSTO * 0.8);
-    if (parecido) return mostrarErro(`Este rosto é muito parecido com o cadastrado em "${parecido.empresa}". Confira a empresa antes de salvar.`);
-    btn.textContent = "Salvando foto...";
-    const link = await enviarFoto(foto);
+    fotoCadastro = { foto, descritor: det.descriptor };
+    mostrarCaptura(foto, true, parecido
+      ? `Foto boa. Atenção: este rosto parece o já cadastrado em "${parecido.empresa}". Confira a empresa.`
+      : "Foto boa. Agora preencha os dados abaixo e salve.");
+  } catch (err) {
+    toast(err.message, "erro");
+  } finally {
+    cadastrando = false;
+    btn.disabled = false; btn.lastChild.textContent = " Tirar foto";
+    validarFacial();
+  }
+});
+
+$("#form-facial").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const erro = $("#fac-erro"); erro.hidden = true;
+  const mostrarErro = (m) => { erro.textContent = m; erro.hidden = false; toast(m, "erro"); };
+  if (!fotoCadastro) return mostrarErro("Tire a foto do promotor primeiro (botão Tirar foto, abaixo da câmera).");
+  const btn = $("#btn-facial"); btn.disabled = true; btn.textContent = "Salvando foto...";
+  try {
+    const empresa = $("#fac-empresa").value, nome = $("#fac-nome").value.trim();
+    const link = await enviarFoto(fotoCadastro.foto);
     await rpc("promot_web_salvar_gabarito", {
-      p_token: sessao.token, p_empresa: empresa, p_nome: $("#fac-nome").value.trim(),
-      p_telefone: $("#fac-tel").value.trim(), p_link: link, p_descritor: Array.from(det.descriptor),
+      p_token: sessao.token, p_empresa: empresa, p_nome: nome,
+      p_telefone: $("#fac-tel").value.trim(), p_link: link, p_descritor: Array.from(fotoCadastro.descritor),
     });
-    const nome = $("#fac-nome").value.trim();
     $("#form-facial").reset();
+    limparCaptura();
     await recarregar(false);
     toast("Rosto de " + nome + " (" + empresa + ") cadastrado", "ok");
   } catch (err) {
     mostrarErro(err.message);
   } finally {
-    btn.textContent = "Tirar foto e salvar"; validarFacial();
+    btn.textContent = "Salvar cadastro"; validarFacial();
   }
 });
 

@@ -394,3 +394,11 @@ td .sub-cel { color: var(--texto-suave); font-size: .8rem; }
 .foto-visita { display: block; width: 100%; max-height: 260px; object-fit: cover; border-radius: 12px; border: 1px solid var(--borda); }
 .link-editar { border: 0; background: none; padding: 0; color: var(--azul); font: inherit; font-size: .75rem; font-weight: 700; cursor: pointer; text-decoration: underline; }
 .btn-editar-visita.btn { white-space: nowrap; color: var(--azul); font-weight: 700; }
+
+/* ---------- cadastro facial: foto ---------- */
+.acoes-foto { display: flex; gap: 10px; flex-wrap: wrap; }
+.acoes-foto .btn { flex: 1 1 220px; min-height: 50px; font-size: 1rem; }
+.captura-previa.ok { border-color: color-mix(in srgb, var(--verde) 45%, transparent); background: var(--verde-claro); }
+.captura-previa.falha { border-color: color-mix(in srgb, var(--vermelho) 45%, transparent); background: var(--vermelho-claro); }
+.captura-previa.ok #captura-txt { color: var(--verde); }
+.captura-previa.falha #captura-txt { color: var(--vermelho); }

@@ -81,6 +81,7 @@ const MENSAGENS = {
   DESCRITOR_INVALIDO: "Não foi possível ler o rosto. Tire a foto de novo.",
   FOTO_AUSENTE: "A foto não foi enviada. Tente de novo.",
   IMGBB_NAO_CONFIGURADO: "A chave do ImgBB ainda não foi configurada no banco.",
+  VISITA_NAO_ENCONTRADA: "Só dá para editar visitas de hoje desta loja. Atualize a tela.",
   IMGBB_FALHOU: "O ImgBB não aceitou a foto agora. Tente de novo em instantes.",
 };
 function traduzir(msg) {
@@ -294,11 +295,13 @@ function renderRegistrosHoje() {
   $("#qtd-hoje").textContent = v.length + (v.length === 1 ? " visita" : " visitas");
   $("#lista-hoje").innerHTML = v.length ? v.map((r) => {
     const facialR = r.frequencia === "FACIAL";
-    const temFoto = r.foto && /^https?:\/\//.test(r.foto);
+    const temFoto = temFotoValida(r.foto);
+    const obs = obsDe(r);
     return `<div class="registro"><div class="avatar">${esc(iniciais(r.fornecedor))}</div>
       <div><b>${esc(r.fornecedor)}</b><small><span class="tag ${facialR ? "facial" : "manual"}">${facialR ? "FACIAL" : "MANUAL"}</span>
       ${temFoto ? ` · <a class="ver-foto" href="${esc(r.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}
-      ${r.obs && !facialR ? ` · ${esc(r.obs)}` : ""}</small></div>
+      ${obs ? ` · ${esc(obs)}` : ""}
+      · <button class="link-editar btn-editar-visita" type="button" data-visita="${r.id}">editar</button></small></div>
       <div class="hora num">${horaDe(r.data)}</div></div>`;
   }).join("") : '<p class="vazio">Nenhuma visita registrada hoje nesta loja.</p>';
   const pend = fornDoDia().filter((f) => !visitaDe(f.fornecedor)).length;
@@ -337,8 +340,9 @@ function renderAgenda() {
     return `<tr><td><div class="principal-cel">${esc(f.fornecedor)}</div><div class="sub-cel">${esc(f.marca)}</div></td>
       <td><div>${esc(f.promotor)}</div><div class="sub-cel num">${esc(f.telefone)}</div></td><td>${esc(f.comprador)}</td>
       <td>${diasHtml(f.frequencia)}</td>
-      <td>${r ? `<span class="tag ok num">Registrado ${horaDe(r.data)}</span>` : '<span class="tag pend">Pendente</span>'}</td></tr>`;
-  }).join("") : `<tr><td colspan="5" class="vazio">${dia.length ? "Nada para mostrar com esse filtro." : "Nenhum fornecedor com visita prevista para hoje."}</td></tr>`;
+      <td>${r ? `<span class="tag ok num">Registrado ${horaDe(r.data)}</span>` : '<span class="tag pend">Pendente</span>'}</td>
+      <td style="text-align:right">${r ? `<button class="btn btn-texto btn-editar-visita" type="button" data-visita="${r.id}">${obsDe(r) || temFotoValida(r.foto) ? "Ver / editar" : "Editar"}</button>` : ""}</td></tr>`;
+  }).join("") : `<tr><td colspan="6" class="vazio">${dia.length ? "Nada para mostrar com esse filtro." : "Nenhum fornecedor com visita prevista para hoje."}</td></tr>`;
 }
 $("#filtro-agenda").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
@@ -495,6 +499,77 @@ async function salvarForn(novo) {
     erro.textContent = err.message; erro.hidden = false; btn.disabled = false;
   }
 }
+// ============================================================
+// Editar uma visita do dia (comentário e foto)
+// ============================================================
+const MARCA_FACIAL = "[CHECK-IN FACIAL]";
+function temFotoValida(f) { return !!f && /^https?:\/\//.test(f); }
+function obsDe(v) { return String(v.obs || "").replace(MARCA_FACIAL, "").trim(); }
+
+let fotoEdicao = null;
+function abrirEdicaoVisita(v) {
+  if (!v) return;
+  fornEditando = null;
+  fotoEdicao = null;
+  const facialV = v.frequencia === "FACIAL";
+  const temFoto = temFotoValida(v.foto);
+  const podeTrocarFoto = !(facialV && temFoto);
+  const g = $("#gaveta");
+  g.innerHTML = `<div class="gaveta-topo"><h3 id="gav-titulo">Registro da visita</h3><button class="btn-fechar" type="button" id="gav-fechar" aria-label="Fechar">×</button></div>
+    <form class="gaveta-corpo" id="gav-form" autocomplete="off">
+      <div class="cartao-forn"><div class="cabeca"><div class="avatar">${esc(iniciais(v.fornecedor))}</div><div><h4>${esc(v.fornecedor)}</h4>
+        <span class="tag ${facialV ? "facial" : "manual"}">${facialV ? "FACIAL" : "MANUAL"}</span> <span class="tag ok num">Registrado ${horaDe(v.data)}</span></div></div></div>
+      ${temFoto ? `<div class="campo"><span>${facialV ? "Foto da câmera (prova da visita)" : "Foto atual"}</span>
+        <a href="${esc(v.foto)}" target="_blank" rel="noopener"><img class="foto-visita" src="${esc(v.foto)}" alt="Foto do registro"></a></div>` : ""}
+      <label class="campo"><span>Comentário sobre a visita</span>
+        <textarea id="ed-obs" placeholder="Ex.: reposição incompleta, gôndola desorganizada, promotor saiu antes do horário">${esc(obsDe(v))}</textarea></label>
+      ${podeTrocarFoto ? `<div class="campo"><span>${temFoto ? "Trocar a foto (opcional)" : "Foto (opcional)"}</span>
+        <label class="soltar" id="ed-soltar" for="ed-foto">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.5-4.5L5 21"/></svg>
+          <span id="ed-soltar-txt">Toque para tirar ou escolher uma foto</span>
+          <img id="ed-previa" alt="" hidden>
+        </label>
+        <input id="ed-foto" type="file" accept="image/*" hidden></div>`
+      : '<p class="dica">No check-in facial a foto da câmera não pode ser trocada. Você pode registrar o que aconteceu no comentário.</p>'}
+      <p id="ed-erro" class="erro" hidden></p>
+    </form>
+    <div class="gaveta-rodape"><button class="btn btn-secundario" type="button" id="gav-cancelar">Cancelar</button><button class="btn btn-primario" type="button" id="ed-salvar">Salvar</button></div>`;
+  $("#veu").hidden = false; g.hidden = false;
+  $("#gav-fechar").onclick = $("#gav-cancelar").onclick = fecharGaveta;
+  $("#gav-form").addEventListener("submit", (e) => { e.preventDefault(); salvarEdicaoVisita(v); });
+  $("#ed-salvar").onclick = () => salvarEdicaoVisita(v);
+  const inpFoto = $("#ed-foto");
+  if (inpFoto) inpFoto.addEventListener("change", async (e) => {
+    const arq = e.target.files[0];
+    if (!arq || !arq.type.startsWith("image/")) return;
+    const url = URL.createObjectURL(arq);
+    try {
+      fotoEdicao = reduzirImagem(await carregarImagem(url));
+      const p = $("#ed-previa"); p.src = fotoEdicao; p.hidden = false;
+      $("#ed-soltar-txt").textContent = arq.name + " (toque para trocar)";
+    } catch { toast("Não consegui abrir essa imagem.", "erro"); }
+    finally { URL.revokeObjectURL(url); }
+  });
+  setTimeout(() => $("#ed-obs").focus(), 50);
+}
+async function salvarEdicaoVisita(v) {
+  const btn = $("#ed-salvar"), erro = $("#ed-erro");
+  btn.disabled = true; btn.textContent = fotoEdicao ? "Enviando foto..." : "Salvando...";
+  try {
+    const link = fotoEdicao ? await enviarFoto(fotoEdicao) : "";
+    await rpc("promot_web_editar_visita", { p_token: sessao.token, p_loja: lojaAtual, p_id: v.id, p_obs: $("#ed-obs").value, p_foto: link });
+    fecharGaveta(); await recarregar(false);
+    toast("Registro de " + v.fornecedor + " atualizado", "ok");
+  } catch (err) {
+    erro.textContent = err.message; erro.hidden = false;
+    btn.disabled = false; btn.textContent = "Salvar";
+  }
+}
+document.addEventListener("click", (e) => {
+  const b = e.target.closest(".btn-editar-visita");
+  if (b) abrirEdicaoVisita(dados.visitas.find((x) => String(x.id) === b.dataset.visita));
+});
+
 function fecharGaveta() { $("#gaveta").hidden = true; $("#veu").hidden = true; fornEditando = null; }
 $("#veu").addEventListener("click", fecharGaveta);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape" && !$("#gaveta").hidden) fecharGaveta(); });

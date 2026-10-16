@@ -10,7 +10,7 @@
     // tema: claro por padrão; cada computador lembra a escolha
     try { var t = localStorage.getItem("promot_web_tema"); if (t === "dark" || t === "light") document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=1.0.3">
+  <link rel="stylesheet" href="style.css?v=1.0.4">
 </head>
 <body>
   <!-- =================== LOGIN =================== -->
@@ -153,10 +153,10 @@
           <div class="grade-2">
             <form class="cartao form-grade" id="form-manual">
               <h3>Novo registro</h3>
-              <label class="campo">
+              <div class="campo">
                 <span>Fornecedor</span>
-                <select id="man-forn"></select>
-              </label>
+                <select id="man-forn" aria-label="Fornecedor"></select>
+              </div>
               <label class="campo">
                 <span>Observação (opcional)</span>
                 <textarea id="man-obs" placeholder="Ex.: produto em falta, prateleira organizada"></textarea>
@@ -203,7 +203,7 @@
                 <div class="moldura" style="width:30%"></div>
                 <div class="camera-dica">A foto é tirada de perto, com o rosto no contorno</div>
               </div>
-              <label class="campo"><span>Empresa</span><select id="fac-empresa"></select></label>
+              <div class="campo"><span>Empresa</span><select id="fac-empresa" aria-label="Empresa"></select></div>
               <div class="linha-2">
                 <label class="campo"><span>Nome do promotor</span><input id="fac-nome" type="text" placeholder="Nome completo" autocomplete="off"></label>
                 <label class="campo"><span>Telefone (opcional)</span><input id="fac-tel" type="text" placeholder="(43) 99999-0000" autocomplete="off"></label>
@@ -232,7 +232,7 @@
   <div id="carregando" class="carregando" hidden><div class="spinner"></div></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
-  <script src="config.js?v=1.0.3"></script>
-  <script src="app.js?v=1.0.3"></script>
+  <script src="config.js?v=1.0.4"></script>
+  <script src="app.js?v=1.0.4"></script>
 </body>
 </html>

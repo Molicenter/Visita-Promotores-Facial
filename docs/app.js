@@ -357,6 +357,7 @@ function renderManual() {
   sel.innerHTML = '<option value="">Escolha...</option>' +
     dados.fornecedores.map((f) => `<option value="${f.id}">${esc(f.fornecedor)}</option>`).join("");
   if ([...sel.options].some((o) => o.value === atual)) sel.value = atual;
+  buscas.manual?.sincronizar();
   mostrarInfoForn();
 }
 function mostrarInfoForn() {
@@ -745,6 +746,7 @@ function renderFacial() {
   const nomes = [...new Set(dados.fornecedores.map((f) => f.fornecedor))].sort((a, b) => a.localeCompare(b, "pt-BR"));
   sel.innerHTML = '<option value="">Escolha...</option>' + nomes.map((n) => `<option>${esc(n)}</option>`).join("");
   if (nomes.includes(atual)) sel.value = atual;
+  buscas.facial?.sincronizar();
   const g = dados.gabaritos;
   $("#qtd-gab").textContent = g.length + (g.length === 1 ? " promotor" : " promotores");
   $("#lista-gab").innerHTML = g.length ? g.map((x) => {
@@ -800,6 +802,68 @@ $("#form-facial").addEventListener("submit", async (e) => {
     btn.textContent = "Tirar foto e salvar"; validarFacial();
   }
 });
+
+// ============================================================
+// Campo de busca no lugar da lista (select): abre o teclado e filtra enquanto digita
+// O <select> original continua existindo (escondido) e guarda o valor escolhido.
+// ============================================================
+const buscas = {};
+function criarBusca(sel, placeholder) {
+  sel.hidden = true;
+  const caixa = document.createElement("div");
+  caixa.className = "busca-lista";
+  caixa.innerHTML = `<div class="busca-lista-campo">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search" placeholder="${esc(placeholder)}">
+      <button type="button" class="busca-lista-limpar" aria-label="Limpar" hidden>×</button>
+    </div>
+    <ul class="busca-lista-opcoes" role="listbox" hidden></ul>`;
+  sel.after(caixa);
+  const inp = caixa.querySelector("input"), ul = caixa.querySelector("ul"), limpar = caixa.querySelector(".busca-lista-limpar");
+  let ativo = -1;
+
+  const opcoes = () => [...sel.options].filter((o) => o.value !== "");
+  function textoEscolhido() { const o = sel.selectedOptions[0]; return o && o.value !== "" ? o.textContent : ""; }
+  function sincronizar() { inp.value = textoEscolhido(); limpar.hidden = !inp.value; fechar(); }
+  function fechar() { ul.hidden = true; ativo = -1; }
+  function abrir() {
+    const q = norm(inp.value === textoEscolhido() ? "" : inp.value);
+    const lista = opcoes().filter((o) => !q || norm(o.textContent).includes(q)).slice(0, 80);
+    ul.innerHTML = lista.length
+      ? lista.map((o, i) => `<li role="option" data-v="${esc(o.value)}" class="${o.value === sel.value ? "escolhido" : ""}">${esc(o.textContent)}</li>`).join("")
+      : '<li class="nada">Nenhum resultado</li>';
+    ul.hidden = false; ativo = -1;
+  }
+  function escolher(v) {
+    sel.value = v;
+    sel.dispatchEvent(new Event("change", { bubbles: true }));
+    sincronizar();
+    inp.blur();
+  }
+  inp.addEventListener("focus", () => { inp.select(); abrir(); });
+  inp.addEventListener("input", () => { limpar.hidden = !inp.value; abrir(); });
+  inp.addEventListener("keydown", (e) => {
+    const itens = [...ul.querySelectorAll("li[data-v]")];
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault(); if (ul.hidden) abrir();
+      ativo = Math.max(0, Math.min(itens.length - 1, ativo + (e.key === "ArrowDown" ? 1 : -1)));
+      itens.forEach((li, i) => li.classList.toggle("ativo", i === ativo));
+      itens[ativo]?.scrollIntoView({ block: "nearest" });
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const alvo = itens[ativo >= 0 ? ativo : 0];
+      if (alvo) escolher(alvo.dataset.v);
+    } else if (e.key === "Escape") { sincronizar(); inp.blur(); }
+  });
+  // pointerdown antes do blur: o toque no item não se perde quando o teclado fecha
+  ul.addEventListener("pointerdown", (e) => { const li = e.target.closest("li[data-v]"); if (li) { e.preventDefault(); escolher(li.dataset.v); } });
+  inp.addEventListener("blur", () => setTimeout(() => { if (document.activeElement !== inp) sincronizar(); }, 150));
+  limpar.addEventListener("pointerdown", (e) => { e.preventDefault(); sel.value = ""; sel.dispatchEvent(new Event("change", { bubbles: true })); inp.value = ""; limpar.hidden = true; inp.focus(); });
+  sel.form?.addEventListener("reset", () => setTimeout(() => { sel.dispatchEvent(new Event("change", { bubbles: true })); sincronizar(); }, 0));
+  return { sincronizar };
+}
+buscas.manual = criarBusca($("#man-forn"), "Digite o nome do fornecedor...");
+buscas.facial = criarBusca($("#fac-empresa"), "Digite o nome da empresa...");
 
 // ============================================================
 // Tema claro / escuro

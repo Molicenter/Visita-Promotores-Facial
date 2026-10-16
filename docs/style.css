@@ -1,9 +1,10 @@
-/* Registro de Promotores — Molicenter
-   Layout: barra lateral azul fixa + área de trabalho clara com cartões; desktop primeiro, empilha no celular */
 [hidden] { display: none !important; }
 html, body { margin: 0; }
 img { max-width: 100%; }
 body { -webkit-font-smoothing: antialiased; }
+
+/* Registro de Promotores — Molicenter
+   Layout: barra lateral azul fixa + área de trabalho clara com cartões; desktop primeiro, empilha no celular */
 :root {
   --azul: #0B3D63;
   --azul-escuro: #072A45;
@@ -356,3 +357,11 @@ td .sub-cel { color: var(--texto-suave); font-size: .8rem; }
 .captura-previa { display: flex; align-items: center; gap: 14px; background: var(--superficie-2); border: 1px solid var(--borda); border-radius: 12px; padding: 10px 12px; }
 .captura-previa img { width: 64px; height: 64px; border-radius: 12px; object-fit: cover; }
 .captura-previa span { font-size: .88rem; font-weight: 600; }
+
+/* ---------- botão de tema ---------- */
+.botao-tema { border: 0; cursor: pointer; }
+.botao-tema svg { width: 16px; height: 16px; }
+.botao-tema:hover { filter: brightness(.96); }
+.ic-sol { display: none; }
+:root[data-theme="dark"] .ic-sol { display: inline; }
+:root[data-theme="dark"] .ic-lua { display: none; }

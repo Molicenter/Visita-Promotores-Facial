@@ -802,6 +802,17 @@ $("#form-facial").addEventListener("submit", async (e) => {
 });
 
 // ============================================================
+// Tema claro / escuro
+// ============================================================
+function aplicarTema(t) {
+  document.documentElement.dataset.theme = t;
+  $("#txt-tema").textContent = t === "dark" ? "Claro" : "Escuro";
+  try { localStorage.setItem("promot_web_tema", t); } catch {}
+}
+$("#btn-tema").addEventListener("click", () => aplicarTema(document.documentElement.dataset.theme === "dark" ? "light" : "dark"));
+aplicarTema(document.documentElement.dataset.theme === "dark" ? "dark" : "light");
+
+// ============================================================
 // Partida
 // ============================================================
 document.addEventListener("visibilitychange", () => {

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0B3D63">
+  <title>Registro Promotores · Molicenter</title>
+  <link rel="icon" href="logo.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <!-- =================== LOGIN =================== -->
+  <section id="tela-login" class="tela-login" hidden>
+    <form id="form-login" class="login-cartao" autocomplete="off">
+      <div class="marca">
+        <img class="marca-selo" src="logo.png" alt="Passarinho Molicenter">
+        <div>
+          <h1>Supermercado Molicenter</h1>
+          <p>Registro de Promotores</p>
+        </div>
+      </div>
+      <label class="campo">
+        <span>Usuário</span>
+        <select id="login-usuario"></select>
+      </label>
+      <label class="campo">
+        <span>Senha</span>
+        <!-- type="text" + máscara via CSS: o Chrome não oferece salvar/gerar senha -->
+        <input id="login-senha" type="text" class="senha" autocomplete="off" autocapitalize="off"
+               autocorrect="off" spellcheck="false" data-lpignore="true" data-form-type="other">
+      </label>
+      <p id="login-erro" class="erro" hidden></p>
+      <button class="btn btn-primario btn-bloco" type="submit" id="btn-entrar">Entrar</button>
+      <p class="versao" id="versao-login"></p>
+    </form>
+  </section>
+
+  <!-- =================== APP =================== -->
+  <div id="app" class="app" hidden>
+    <aside class="lateral">
+      <div class="marca">
+        <img class="marca-selo" src="logo.png" alt="Passarinho Molicenter">
+        <div><h1>Molicenter</h1><p>Promotores</p></div>
+      </div>
+      <nav class="nav" id="nav">
+        <div class="nav-rotulo">Dia a dia</div>
+        <button data-pg="checkin" class="ativo" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2"/><circle cx="12" cy="10" r="3"/><path d="M7.5 17a5 5 0 0 1 9 0"/></svg>
+          Check-in facial</button>
+        <button data-pg="agenda" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/><path d="m9 15 2 2 4-4"/></svg>
+          Agenda de hoje <span class="contador num" id="nav-pendentes" hidden>0</span></button>
+        <button data-pg="manual" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          Registro manual</button>
+        <div class="nav-rotulo">Cadastros</div>
+        <button data-pg="promotores" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8"/></svg>
+          Fornecedores</button>
+        <button data-pg="facial" type="button">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3Z"/><circle cx="12" cy="13" r="3.5"/></svg>
+          Cadastro facial</button>
+      </nav>
+      <div class="conta">
+        <strong id="conta-nome"></strong>
+        <small id="conta-perfil"></small>
+        <button class="btn" id="btn-sair" type="button">Sair</button>
+      </div>
+    </aside>
+
+    <div class="principal">
+      <header class="topo">
+        <div class="topo-titulo">
+          <h2 id="pg-titulo">Check-in facial</h2>
+          <p id="pg-sub"></p>
+        </div>
+        <div class="pilulas">
+          <span class="pilula" id="pilula-loja"></span>
+          <span class="pilula magenta num" id="pilula-data"></span>
+        </div>
+      </header>
+
+      <main class="conteudo">
+        <!-- ---------- CHECK-IN FACIAL ---------- -->
+        <section class="pagina" id="pg-checkin">
+          <div class="grade-2">
+            <div class="cartao">
+              <div class="camera" id="camera">
+                <svg class="silhueta" viewBox="0 0 200 220" aria-hidden="true"><circle cx="100" cy="78" r="46" fill="#5C7BB8"/><path d="M20 220c6-52 40-80 80-80s74 28 80 80Z" fill="#5C7BB8"/></svg>
+                <video id="video" autoplay muted playsinline></video>
+                <div class="moldura"></div>
+                <div class="varredura"></div>
+                <div class="camera-rotulo"><span class="ponto-vivo"></span>Câmera do computador</div>
+                <div class="camera-dica" id="camera-dica">Preparando a câmera...</div>
+                <div class="camera-sem" id="camera-sem" hidden>
+                  <strong id="camera-sem-titulo">Câmera desligada</strong>
+                  <p id="camera-sem-texto"></p>
+                  <button class="btn btn-primario" type="button" id="btn-ligar-camera">Ligar câmera</button>
+                </div>
+              </div>
+              <div class="medidor">
+                <div class="medidor-linha"><span>Distância do rosto</span><span id="medidor-txt">—</span></div>
+                <div class="barra"><i id="medidor-barra"></i></div>
+              </div>
+              <div class="camera-status">
+                <span id="status-modelos">Carregando reconhecimento facial...</span>
+                <span id="status-rostos"></span>
+              </div>
+            </div>
+
+            <div class="pagina">
+              <div id="estado-checkin"></div>
+              <div class="cartao">
+                <h3>Registrados hoje <small class="num" id="qtd-hoje"></small></h3>
+                <div class="lista-registros" id="lista-hoje"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------- AGENDA ---------- -->
+        <section class="pagina" id="pg-agenda" hidden>
+          <div class="kpis" id="kpis"></div>
+          <div class="cartao">
+            <div class="barra-filtros">
+              <div class="chips" id="filtro-agenda">
+                <button data-f="todos" class="sel" type="button">Todos</button>
+                <button data-f="pend" type="button">Pendentes</button>
+                <button data-f="ok" type="button">Registrados</button>
+              </div>
+              <input class="busca" id="busca-agenda" type="search" placeholder="Buscar fornecedor, marca ou promotor">
+            </div>
+            <div class="tabela-wrap">
+              <table>
+                <thead><tr><th>Fornecedor</th><th>Promotor</th><th>Comprador</th><th>Dias de visita</th><th>Situação</th></tr></thead>
+                <tbody id="tb-agenda"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------- REGISTRO MANUAL ---------- -->
+        <section class="pagina" id="pg-manual" hidden>
+          <div class="grade-2">
+            <form class="cartao form-grade" id="form-manual">
+              <h3>Novo registro</h3>
+              <label class="campo">
+                <span>Fornecedor</span>
+                <select id="man-forn"></select>
+              </label>
+              <label class="campo">
+                <span>Observação (opcional)</span>
+                <textarea id="man-obs" placeholder="Ex.: produto em falta, prateleira organizada"></textarea>
+              </label>
+              <div class="campo">
+                <span>Foto do registro (opcional)</span>
+                <label class="soltar" id="soltar" for="man-foto">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.5-4.5L5 21"/></svg>
+                  <span id="soltar-txt">Arraste a foto aqui ou clique para escolher</span>
+                  <img id="man-previa" alt="" hidden>
+                </label>
+                <input id="man-foto" type="file" accept="image/*" hidden>
+              </div>
+              <button class="btn btn-primario" type="submit" id="btn-manual" disabled>Confirmar registro</button>
+            </form>
+            <div class="cartao" id="info-forn"></div>
+          </div>
+        </section>
+
+        <!-- ---------- FORNECEDORES ---------- -->
+        <section class="pagina" id="pg-promotores" hidden>
+          <div class="cartao">
+            <div class="barra-filtros">
+              <input class="busca" id="busca-forn" type="search" placeholder="Buscar fornecedor, marca, promotor ou telefone">
+              <button class="btn btn-primario" id="btn-novo-forn" type="button">+ Novo fornecedor</button>
+            </div>
+            <div class="tabela-wrap">
+              <table>
+                <thead><tr><th>Código</th><th>Fornecedor</th><th>Promotor</th><th>Telefone</th><th>Dias de visita</th><th></th></tr></thead>
+                <tbody id="tb-forn"></tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ---------- CADASTRO FACIAL ---------- -->
+        <section class="pagina" id="pg-facial" hidden>
+          <div class="grade-2">
+            <form class="cartao form-grade" id="form-facial">
+              <h3>Cadastrar rosto de um promotor</h3>
+              <div class="camera" id="camera-cad" style="aspect-ratio: 16 / 10">
+                <svg class="silhueta" viewBox="0 0 200 220" aria-hidden="true" style="width:34%"><circle cx="100" cy="78" r="46" fill="#5C7BB8"/><path d="M20 220c6-52 40-80 80-80s74 28 80 80Z" fill="#5C7BB8"/></svg>
+                <video id="video-cad" autoplay muted playsinline></video>
+                <div class="moldura" style="width:30%"></div>
+                <div class="camera-dica">A foto é tirada de perto, com o rosto no contorno</div>
+              </div>
+              <label class="campo"><span>Empresa</span><select id="fac-empresa"></select></label>
+              <div class="linha-2">
+                <label class="campo"><span>Nome do promotor</span><input id="fac-nome" type="text" placeholder="Nome completo" autocomplete="off"></label>
+                <label class="campo"><span>Telefone (opcional)</span><input id="fac-tel" type="text" placeholder="(43) 99999-0000" autocomplete="off"></label>
+              </div>
+              <div class="lgpd">
+                <b>Termo de uso e proteção de dados (LGPD)</b><br>
+                Declaramos, em conformidade com a Lei Geral de Proteção de Dados (LGPD), que a imagem capturada para este cadastro biométrico será usada apenas para o registro interno de visitas e controle de acesso de promotores nas lojas Molicenter. Os dados biométricos ficam armazenados de forma segura e não são compartilhados com terceiros sem consentimento explícito. Declaro ciência e autorizo o uso da minha imagem.
+              </div>
+              <label class="marcar"><input type="checkbox" id="fac-lgpd"> O promotor leu e assinou o termo</label>
+              <p class="erro" id="fac-erro" hidden></p>
+              <button class="btn btn-primario" type="submit" id="btn-facial" disabled>Tirar foto e salvar</button>
+            </form>
+            <div class="cartao">
+              <h3>Rostos cadastrados <small class="num" id="qtd-gab"></small></h3>
+              <div class="gabaritos" id="lista-gab"></div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div id="veu" class="veu" hidden></div>
+  <aside id="gaveta" class="gaveta" hidden role="dialog" aria-modal="true" aria-labelledby="gav-titulo"></aside>
+  <div id="toast" class="toast" hidden role="status"></div>
+  <div id="carregando" class="carregando" hidden><div class="spinner"></div></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

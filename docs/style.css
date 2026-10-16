@@ -218,7 +218,7 @@ input, select, textarea { font: inherit; color: inherit; }
 .tag.fora { background: var(--vermelho-claro); color: var(--vermelho); }
 
 /* ---------- agenda ---------- */
-.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 16px; }
+.kpis { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 16px; }
 .kpi { background: var(--superficie); border-radius: var(--raio); box-shadow: var(--sombra); padding: 16px 18px; display: grid; gap: 4px; }
 .kpi small { color: var(--texto-suave); font-size: .78rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
 .kpi strong { font-size: 1.9rem; color: var(--azul-escuro); line-height: 1.1; }
@@ -312,7 +312,8 @@ td .sub-cel { color: var(--texto-suave); font-size: .8rem; }
 
 /* ---------- celular / telas estreitas ---------- */
 .menu-movel { display: none; }
-@media (max-width: 1100px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1300px) { .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 700px) { .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 900px) {
   .grade-2 { grid-template-columns: minmax(0, 1fr); }
   .app { grid-template-columns: minmax(0, 1fr); }
@@ -402,3 +403,13 @@ td .sub-cel { color: var(--texto-suave); font-size: .8rem; }
 .captura-previa.falha { border-color: color-mix(in srgb, var(--vermelho) 45%, transparent); background: var(--vermelho-claro); }
 .captura-previa.ok #captura-txt { color: var(--verde); }
 .captura-previa.falha #captura-txt { color: var(--vermelho); }
+
+/* ---------- entrada e saída ---------- */
+.kpi.magenta strong { color: var(--magenta); }
+.tag.saiu { background: var(--superficie-2); color: var(--texto-suave); border: 1px solid var(--borda); }
+.tempo { font-size: .75rem; color: var(--texto-suave); font-weight: 600; margin-top: 3px; }
+.acoes-linha { display: inline-flex; gap: 6px; align-items: center; justify-content: flex-end; flex-wrap: wrap; }
+.btn-saida { min-height: 34px; padding: 6px 12px; font-size: .82rem; border-radius: 10px; background: var(--magenta-claro); color: var(--magenta); white-space: nowrap; }
+.btn-saida:hover { background: var(--magenta); color: #fff; }
+.btn-saida.confirmar { background: var(--magenta); color: #fff; }
+.registro .hora small { display: block; font-size: .7rem; color: var(--texto-suave); font-weight: 600; }

@@ -256,11 +256,11 @@ setInterval(() => { if (sessao && !document.hidden && !facial.ocupado) recarrega
 // Navegação
 // ============================================================
 const PAGINAS = {
-  checkin: ["Check-in facial", "O promotor se posiciona na frente da câmera e a visita é registrada sozinha."],
+  checkin: ["Entrada facial", "O promotor se posiciona na frente da câmera e a entrada é registrada sozinha."],
   agenda: ["Agenda de hoje", ""],
   manual: ["Registro manual", "Para quando a câmera não reconhecer ou o promotor não tiver rosto cadastrado."],
   promotores: ["Fornecedores e promotores", "Cadastro da loja: quem atende, telefone e dias de visita."],
-  facial: ["Cadastro facial", "Foto de referência que o check-in usa para reconhecer o promotor."],
+  facial: ["Cadastro facial", "Foto de referência que a entrada facial usa para reconhecer o promotor."],
 };
 function irPara(pg) {
   paginaAtual = pg;
@@ -290,6 +290,53 @@ function visitaDe(nome) {
   const n = norm(nome);
   return dados.visitas.find((v) => norm(v.fornecedor) === n);
 }
+// tempo na loja: "1h25" / "40 min"
+function fmtTempo(min) {
+  min = Math.max(0, Math.round(Number(min) || 0));
+  if (min < 60) return min + " min";
+  return Math.floor(min / 60) + "h" + String(min % 60).padStart(2, "0");
+}
+function minutosDesde(dataTxt) {
+  // "DD/MM/AAAA HH:MM:SS" no horário de São Paulo → minutos até agora
+  const m = String(dataTxt || "").match(/^(\d{2})\/(\d{2})\/(\d{4}) (\d{2}):(\d{2})/);
+  if (!m) return 0;
+  const agora = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  const ini = new Date(+m[3], +m[2] - 1, +m[1], +m[4], +m[5]);
+  return Math.max(0, Math.round((agora - ini) / 60000));
+}
+const temSaida = (v) => !!(v && v.saida);
+function situacaoHtml(r) {
+  if (!r) return '<span class="tag pend">Pendente</span>';
+  if (temSaida(r)) return `<span class="tag saiu num">Entrada ${horaDe(r.data)} · Saída ${horaDe(r.saida)}</span><div class="tempo num">${fmtTempo(r.minutos)} na loja</div>`;
+  return `<span class="tag ok num">Na loja desde ${horaDe(r.data)}</span><div class="tempo num">há ${fmtTempo(minutosDesde(r.data))}</div>`;
+}
+function botaoSaida(r) {
+  return r && !temSaida(r) ? `<button class="btn btn-saida" type="button" data-saida="${r.id}">Registrar saída</button>` : "";
+}
+
+// clique em "Registrar saída": pede confirmação no próprio botão (evita clique sem querer)
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-saida]");
+  if (!b) return;
+  if (!b.classList.contains("confirmar")) {
+    document.querySelectorAll(".btn-saida.confirmar").forEach((x) => { x.classList.remove("confirmar"); x.textContent = "Registrar saída"; });
+    b.classList.add("confirmar"); b.textContent = "Confirmar saída?";
+    clearTimeout(b._t); b._t = setTimeout(() => { b.classList.remove("confirmar"); b.textContent = "Registrar saída"; }, 4000);
+    return;
+  }
+  clearTimeout(b._t);
+  b.disabled = true; b.textContent = "Registrando...";
+  const v = dados.visitas.find((x) => String(x.id) === b.dataset.saida);
+  try {
+    const r = await rpc("promot_web_registrar_saida", { p_token: sessao.token, p_loja: lojaAtual, p_id: Number(b.dataset.saida) });
+    await recarregar(false);
+    toast(`Saída de ${v ? v.fornecedor : "promotor"} às ${horaDe(r.saida)} · ${fmtTempo(r.minutos)} na loja`, "ok");
+  } catch (err) {
+    toast(err.message, "erro");
+    b.disabled = false; b.classList.remove("confirmar"); b.textContent = "Registrar saída";
+  }
+});
+
 function renderRegistrosHoje() {
   const v = dados.visitas;
   $("#qtd-hoje").textContent = v.length + (v.length === 1 ? " visita" : " visitas");
@@ -301,8 +348,9 @@ function renderRegistrosHoje() {
       <div><b>${esc(r.fornecedor)}</b><small><span class="tag ${facialR ? "facial" : "manual"}">${facialR ? "FACIAL" : "MANUAL"}</span>
       ${temFoto ? ` · <a class="ver-foto" href="${esc(r.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}
       ${obs ? ` · ${esc(obs)}` : ""}
-      · <button class="link-editar btn-editar-visita" type="button" data-visita="${r.id}">editar</button></small></div>
-      <div class="hora num">${horaDe(r.data)}</div></div>`;
+      · <button class="link-editar btn-editar-visita" type="button" data-visita="${r.id}">editar</button></small>
+      ${botaoSaida(r) ? `<div style="margin-top:6px">${botaoSaida(r)}</div>` : ""}</div>
+      <div class="hora num">${horaDe(r.data)}${temSaida(r) ? `<small>até ${horaDe(r.saida)}</small><small>${fmtTempo(r.minutos)}</small>` : "<small>na loja</small>"}</div></div>`;
   }).join("") : '<p class="vazio">Nenhuma visita registrada hoje nesta loja.</p>';
   const pend = fornDoDia().filter((f) => !visitaDe(f.fornecedor)).length;
   const c = $("#nav-pendentes"); c.textContent = pend; c.hidden = pend === 0;
@@ -327,12 +375,14 @@ function renderAgenda() {
     <div class="kpi destaque"><small>Previstos hoje</small><strong class="num">${dia.length}</strong><span>${hj.sigla}, ${hj.data}</span></div>
     <div class="kpi verde"><small>Já passaram</small><strong class="num">${ok}</strong><div class="progresso"><i style="width:${pct}%;background:var(--verde)"></i></div></div>
     <div class="kpi laranja"><small>Pendentes</small><strong class="num">${pend}</strong><span>ainda não registraram</span></div>
-    <div class="kpi"><small>Fora da agenda</small><strong class="num">${fora}</strong><span>vieram em dia não previsto</span></div>`;
+    <div class="kpi"><small>Fora da agenda</small><strong class="num">${fora}</strong><span>vieram em dia não previsto</span></div>
+    <div class="kpi magenta"><small>Na loja agora</small><strong class="num">${dados.visitas.filter((v) => !temSaida(v)).length}</strong><span>entraram e ainda não saíram</span></div>`;
   const q = norm($("#busca-agenda").value);
   const linhas = dia.filter((f) => {
     const r = visitaDe(f.fornecedor);
     if (filtroAgenda === "pend" && r) return false;
     if (filtroAgenda === "ok" && !r) return false;
+    if (filtroAgenda === "naloja" && !(r && !temSaida(r))) return false;
     return !q || norm([f.fornecedor, f.marca, f.promotor].join(" ")).includes(q);
   });
   $("#tb-agenda").innerHTML = linhas.length ? linhas.map((f) => {
@@ -340,8 +390,8 @@ function renderAgenda() {
     return `<tr><td><div class="principal-cel">${esc(f.fornecedor)}</div><div class="sub-cel">${esc(f.marca)}</div></td>
       <td><div>${esc(f.promotor)}</div><div class="sub-cel num">${esc(f.telefone)}</div></td><td>${esc(f.comprador)}</td>
       <td>${diasHtml(f.frequencia)}</td>
-      <td>${r ? `<span class="tag ok num">Registrado ${horaDe(r.data)}</span>` : '<span class="tag pend">Pendente</span>'}</td>
-      <td style="text-align:right">${r ? `<button class="btn btn-texto btn-editar-visita" type="button" data-visita="${r.id}">${obsDe(r) || temFotoValida(r.foto) ? "Ver / editar" : "Editar"}</button>` : ""}</td></tr>`;
+      <td>${situacaoHtml(r)}</td>
+      <td style="text-align:right"><div class="acoes-linha">${botaoSaida(r)}${r ? `<button class="btn btn-texto btn-editar-visita" type="button" data-visita="${r.id}">${obsDe(r) || temFotoValida(r.foto) ? "Ver / editar" : "Editar"}</button>` : ""}</div></td></tr>`;
   }).join("") : `<tr><td colspan="6" class="vazio">${dia.length ? "Nada para mostrar com esse filtro." : "Nenhum fornecedor com visita prevista para hoje."}</td></tr>`;
 }
 $("#filtro-agenda").addEventListener("click", (e) => {
@@ -502,9 +552,9 @@ async function salvarForn(novo) {
 // ============================================================
 // Editar uma visita do dia (comentário e foto)
 // ============================================================
-const MARCA_FACIAL = "[CHECK-IN FACIAL]";
+const MARCAS_FACIAL = ["[CHECK-IN FACIAL]", "[ENTRADA FACIAL]"];
 function temFotoValida(f) { return !!f && /^https?:\/\//.test(f); }
-function obsDe(v) { return String(v.obs || "").replace(MARCA_FACIAL, "").trim(); }
+function obsDe(v) { let t = String(v.obs || ""); MARCAS_FACIAL.forEach((m) => (t = t.replace(m, ""))); return t.trim(); }
 
 let fotoEdicao = null;
 function abrirEdicaoVisita(v) {
@@ -518,7 +568,8 @@ function abrirEdicaoVisita(v) {
   g.innerHTML = `<div class="gaveta-topo"><h3 id="gav-titulo">Registro da visita</h3><button class="btn-fechar" type="button" id="gav-fechar" aria-label="Fechar">×</button></div>
     <form class="gaveta-corpo" id="gav-form" autocomplete="off">
       <div class="cartao-forn"><div class="cabeca"><div class="avatar">${esc(iniciais(v.fornecedor))}</div><div><h4>${esc(v.fornecedor)}</h4>
-        <span class="tag ${facialV ? "facial" : "manual"}">${facialV ? "FACIAL" : "MANUAL"}</span> <span class="tag ok num">Registrado ${horaDe(v.data)}</span></div></div></div>
+        <span class="tag ${facialV ? "facial" : "manual"}">${facialV ? "FACIAL" : "MANUAL"}</span> <span class="tag ok num">Entrada ${horaDe(v.data)}</span>
+        ${temSaida(v) ? `<span class="tag saiu num">Saída ${horaDe(v.saida)} · ${fmtTempo(v.minutos)}</span>` : '<span class="tag pend">Ainda na loja</span>'}</div></div></div>
       ${temFoto ? `<div class="campo"><span>${facialV ? "Foto da câmera (prova da visita)" : "Foto atual"}</span>
         <a href="${esc(v.foto)}" target="_blank" rel="noopener"><img class="foto-visita" src="${esc(v.foto)}" alt="Foto do registro"></a></div>` : ""}
       <label class="campo"><span>Comentário sobre a visita</span>
@@ -530,7 +581,7 @@ function abrirEdicaoVisita(v) {
           <img id="ed-previa" alt="" hidden>
         </label>
         <input id="ed-foto" type="file" accept="image/*" hidden></div>`
-      : '<p class="dica">No check-in facial a foto da câmera não pode ser trocada. Você pode registrar o que aconteceu no comentário.</p>'}
+      : '<p class="dica">Na entrada facial a foto da câmera não pode ser trocada. Você pode registrar o que aconteceu no comentário.</p>'}
       <p id="ed-erro" class="erro" hidden></p>
     </form>
     <div class="gaveta-rodape"><button class="btn btn-secundario" type="button" id="gav-cancelar">Cancelar</button><button class="btn btn-primario" type="button" id="ed-salvar">Salvar</button></div>`;
@@ -788,7 +839,7 @@ async function reconhecer() {
     });
     facial.ultimo[melhor.empresa] = Date.now();
     estadoCheckin(r.duplicado ? "duplicado" : "sucesso", { empresa: melhor.empresa, nome: melhor.nome, foto, hora: horaDe(r.data) });
-    if (!r.duplicado) toast("Visita de " + melhor.empresa + " registrada", "ok");
+    if (!r.duplicado) toast("Entrada de " + melhor.empresa + " registrada", "ok");
     await recarregar(false);
     facial.pausaAte = Date.now() + 7000;
     setTimeout(() => { if (Date.now() >= facial.pausaAte - 100) { cam.classList.remove("ok"); estadoCheckin("espera"); } }, 7000);
@@ -815,10 +866,10 @@ function estadoCheckin(tipo, d = {}) {
     ${d.hora ? `<dt>Horário</dt><dd class="num">${d.hora}</dd>` : ""}<dt>Loja</dt><dd>${String(lojaAtual).padStart(2, "0")}</dd></dl>` : "";
   const foto = d.foto ? `<img class="foto-mini" src="${d.foto}" alt="">` : "";
   const html = {
-    espera: `<div class="estado"><div class="icone">${ICONES.pessoa}</div><strong>Aguardando promotor</strong><p>Quando um rosto cadastrado aparecer bem perto da câmera, a visita é registrada sozinha.</p></div>`,
-    registrando: `<div class="estado processando">${foto || `<div class="icone">${ICONES.girando}</div>`}<strong>Registrando visita...</strong>${ficha}</div>`,
-    sucesso: `<div class="estado sucesso">${foto || `<div class="icone">${ICONES.ok}</div>`}<strong>Visita registrada</strong><p>Pode seguir para a loja.</p>${ficha}</div>`,
-    duplicado: `<div class="estado info">${foto || `<div class="icone">${ICONES.relogio}</div>`}<strong>Já registrado há pouco</strong><p>Esta visita já tinha sido registrada às ${esc(d.hora)}. Nada foi duplicado.</p>${ficha}</div>`,
+    espera: `<div class="estado"><div class="icone">${ICONES.pessoa}</div><strong>Aguardando promotor</strong><p>Quando um rosto cadastrado aparecer bem perto da câmera, a entrada é registrada sozinha.</p></div>`,
+    registrando: `<div class="estado processando">${foto || `<div class="icone">${ICONES.girando}</div>`}<strong>Registrando entrada...</strong>${ficha}</div>`,
+    sucesso: `<div class="estado sucesso">${foto || `<div class="icone">${ICONES.ok}</div>`}<strong>Entrada registrada</strong><p>Pode seguir para a loja. Na saída, a fiscal registra pela Agenda.</p>${ficha}</div>`,
+    duplicado: `<div class="estado info">${foto || `<div class="icone">${ICONES.relogio}</div>`}<strong>Já registrado há pouco</strong><p>A entrada já tinha sido registrada às ${esc(d.hora)}. Nada foi duplicado.</p>${ficha}</div>`,
     falha: `<div class="estado falha"><div class="icone">${ICONES.x}</div><strong>Rosto não reconhecido</strong><p>Peça para o promotor tentar de novo, bem de frente e mais perto. Se ele não tiver cadastro, use o registro manual.</p>
       <button class="btn btn-secundario" type="button" data-ir="manual" style="margin-top:8px">Fazer registro manual</button></div>`,
     semrostos: `<div class="estado falha"><div class="icone">${ICONES.x}</div><strong>Nenhum rosto cadastrado</strong><p>Cadastre o rosto do promotor em Cadastro facial ou use o registro manual.</p>
@@ -864,7 +915,7 @@ $("#fac-empresa").addEventListener("change", () => {
   validarFacial();
 });
 
-// cadastro aceita o rosto um pouco mais longe que o check-in (o Streamlit não exigia distância no cadastro)
+// cadastro aceita o rosto um pouco mais longe que a entrada facial (o Streamlit não exigia distância no cadastro)
 const TAMANHO_CADASTRO = Math.max(0.10, CFG.TAMANHO_MIN_ROSTO * 0.6);
 let cadastrando = false;
 async function lerRosto(fonte) {

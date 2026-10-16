@@ -7,7 +7,7 @@ window.CONFIG = {
   MODELOS_URL: "https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/model/",
   // quanto menor, mais exigente (0.45 = bem rígido, 0.55 = mais tolerante)
   LIMIAR_ROSTO: 0.5,
-  // check-in: rosto precisa ocupar pelo menos esta fração da largura da imagem (o cadastro aceita 60% disso)
+  // entrada facial: rosto precisa ocupar pelo menos esta fração da largura da imagem (o cadastro aceita 60% disso)
   TAMANHO_MIN_ROSTO: 0.20,
-  VERSAO: "1.0.7",
+  VERSAO: "1.0.8",
 };

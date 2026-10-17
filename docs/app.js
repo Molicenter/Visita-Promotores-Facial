@@ -81,7 +81,8 @@ const MENSAGENS = {
   DESCRITOR_INVALIDO: "Não foi possível ler o rosto. Tire a foto de novo.",
   FOTO_AUSENTE: "A foto não foi enviada. Tente de novo.",
   IMGBB_NAO_CONFIGURADO: "A chave do ImgBB ainda não foi configurada no banco.",
-  VISITA_NAO_ENCONTRADA: "Só dá para editar visitas de hoje desta loja. Atualize a tela.",
+  VISITA_NAO_ENCONTRADA: "Só dá para alterar visitas de hoje desta loja. Atualize a tela.",
+  promot_web_cancelar_visita: "O cancelamento ainda não foi ativado no banco (falta rodar o SQL 06).",
   IMGBB_FALHOU: "O ImgBB não aceitou a foto agora. Tente de novo em instantes.",
 };
 function traduzir(msg) {
@@ -313,6 +314,51 @@ function situacaoHtml(r) {
 function botaoSaida(r) {
   return r && !temSaida(r) ? `<button class="btn btn-saida" type="button" data-saida="${r.id}">Registrar saída</button>` : "";
 }
+function botaoEntrada(f, r) {
+  return !r ? `<button class="btn btn-entrada" type="button" data-entrada="${f.id}">Registrar entrada</button>` : "";
+}
+function botaoCancelar(r) {
+  return r ? `<button class="btn btn-cancelar" type="button" data-cancelar="${r.id}">Cancelar</button>` : "";
+}
+
+// botões de 2 cliques: o 1º pede confirmação no próprio botão, o 2º executa
+function pedirConfirmacao(b, textoConfirma) {
+  if (b.classList.contains("confirmar")) { clearTimeout(b._t); return true; }
+  document.querySelectorAll("button.confirmar[data-txt]").forEach((x) => { x.classList.remove("confirmar"); x.textContent = x.dataset.txt; });
+  b.dataset.txt = b.textContent;
+  b.classList.add("confirmar"); b.textContent = textoConfirma;
+  clearTimeout(b._t); b._t = setTimeout(() => { b.classList.remove("confirmar"); b.textContent = b.dataset.txt; }, 4000);
+  return false;
+}
+function voltarBotao(b) { b.disabled = false; b.classList.remove("confirmar"); if (b.dataset.txt) b.textContent = b.dataset.txt; }
+
+// "Registrar entrada" direto da Agenda (registro manual, sem foto nem comentário — dá para editar depois)
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-entrada]");
+  if (!b || !pedirConfirmacao(b, "Confirmar entrada?")) return;
+  const f = dados.fornecedores.find((x) => String(x.id) === b.dataset.entrada);
+  if (!f) return;
+  b.disabled = true; b.textContent = "Registrando...";
+  try {
+    const r = await rpc("promot_web_registrar", {
+      p_token: sessao.token, p_loja: lojaAtual, p_fornecedor: f.fornecedor, p_obs: "", p_foto: "", p_facial: false,
+    });
+    await recarregar(false);
+    toast(`Entrada de ${f.fornecedor} às ${horaDe(r.data)}`, "ok");
+  } catch (err) { toast(err.message, "erro"); voltarBotao(b); }
+});
+
+// "Cancelar": apaga o registro de hoje (para quando registrou o fornecedor errado)
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-cancelar]");
+  if (!b || !pedirConfirmacao(b, "Apagar registro?")) return;
+  b.disabled = true; b.textContent = "Apagando...";
+  try {
+    const r = await rpc("promot_web_cancelar_visita", { p_token: sessao.token, p_loja: lojaAtual, p_id: Number(b.dataset.cancelar) });
+    await recarregar(false);
+    toast(`Registro de ${r.fornecedor} cancelado`, "ok");
+  } catch (err) { toast(err.message, "erro"); voltarBotao(b); }
+});
 
 // clique em "Registrar saída": pede confirmação no próprio botão (evita clique sem querer)
 document.addEventListener("click", async (e) => {
@@ -348,7 +394,8 @@ function renderRegistrosHoje() {
       <div><b>${esc(r.fornecedor)}</b><small><span class="tag ${facialR ? "facial" : "manual"}">${facialR ? "FACIAL" : "MANUAL"}</span>
       ${temFoto ? ` · <a class="ver-foto" href="${esc(r.foto)}" target="_blank" rel="noopener">ver foto</a>` : ""}
       ${obs ? ` · ${esc(obs)}` : ""}
-      · <button class="link-editar btn-editar-visita" type="button" data-visita="${r.id}">editar</button></small>
+      · <button class="link-editar btn-editar-visita" type="button" data-visita="${r.id}">editar</button>
+      · <button class="link-editar link-cancelar" type="button" data-cancelar="${r.id}">cancelar</button></small>
       ${botaoSaida(r) ? `<div style="margin-top:6px">${botaoSaida(r)}</div>` : ""}</div>
       <div class="hora num">${horaDe(r.data)}${temSaida(r) ? `<small>até ${horaDe(r.saida)}</small><small>${fmtTempo(r.minutos)}</small>` : "<small>na loja</small>"}</div></div>`;
   }).join("") : '<p class="vazio">Nenhuma visita registrada hoje nesta loja.</p>';
@@ -391,7 +438,7 @@ function renderAgenda() {
       <td><div>${esc(f.promotor)}</div><div class="sub-cel num">${esc(f.telefone)}</div></td><td>${esc(f.comprador)}</td>
       <td>${diasHtml(f.frequencia)}</td>
       <td>${situacaoHtml(r)}</td>
-      <td style="text-align:right"><div class="acoes-linha">${botaoSaida(r)}${r ? `<button class="btn btn-texto btn-editar-visita" type="button" data-visita="${r.id}">${obsDe(r) || temFotoValida(r.foto) ? "Ver / editar" : "Editar"}</button>` : ""}</div></td></tr>`;
+      <td style="text-align:right"><div class="acoes-linha">${botaoEntrada(f, r)}${botaoSaida(r)}${r ?`<button class="btn btn-texto btn-editar-visita" type="button" data-visita="${r.id}">${obsDe(r) || temFotoValida(r.foto) ? "Ver / editar" : "Editar"}</button>` : ""}${botaoCancelar(r)}</div></td></tr>`;
   }).join("") : `<tr><td colspan="6" class="vazio">${dia.length ? "Nada para mostrar com esse filtro." : "Nenhum fornecedor com visita prevista para hoje."}</td></tr>`;
 }
 $("#filtro-agenda").addEventListener("click", (e) => {

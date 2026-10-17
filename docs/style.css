@@ -412,4 +412,10 @@ td .sub-cel { color: var(--texto-suave); font-size: .8rem; }
 .btn-saida { min-height: 34px; padding: 6px 12px; font-size: .82rem; border-radius: 10px; background: var(--magenta-claro); color: var(--magenta); white-space: nowrap; }
 .btn-saida:hover { background: var(--magenta); color: #fff; }
 .btn-saida.confirmar { background: var(--magenta); color: #fff; }
+.btn-entrada { min-height: 34px; padding: 6px 12px; font-size: .82rem; border-radius: 10px; background: var(--azul); color: #fff; white-space: nowrap; }
+.btn-entrada:hover { filter: brightness(1.15); }
+.btn-entrada.confirmar { background: var(--verde); color: #fff; }
+.btn-cancelar { background: none; color: var(--texto-suave); padding: 8px 6px; min-height: 36px; font-size: .85rem; white-space: nowrap; }
+.btn-cancelar:hover, .link-cancelar:hover { color: var(--vermelho); }
+.btn-cancelar.confirmar, .link-cancelar.confirmar { background: var(--vermelho-claro); color: var(--vermelho); border-radius: 10px; padding: 6px 10px; }
 .registro .hora small { display: block; font-size: .7rem; color: var(--texto-suave); font-weight: 600; }

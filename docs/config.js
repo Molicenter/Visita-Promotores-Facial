@@ -9,5 +9,7 @@ window.CONFIG = {
   LIMIAR_ROSTO: 0.5,
   // entrada facial: rosto precisa ocupar pelo menos esta fração da largura da imagem (o cadastro aceita 60% disso)
   TAMANHO_MIN_ROSTO: 0.20,
-  VERSAO: "1.1.0",
+  // depois de quantas horas sem saída a linha fica laranja com "esqueceu a saída?"
+  ALERTA_SAIDA_HORAS: 5,
+  VERSAO: "1.1.1",
 };

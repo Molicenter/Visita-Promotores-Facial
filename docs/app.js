@@ -82,7 +82,11 @@ const MENSAGENS = {
   FOTO_AUSENTE: "A foto não foi enviada. Tente de novo.",
   IMGBB_NAO_CONFIGURADO: "A chave do ImgBB ainda não foi configurada no banco.",
   VISITA_NAO_ENCONTRADA: "Só dá para alterar visitas de hoje desta loja. Atualize a tela.",
-  promot_web_cancelar_visita: "O cancelamento ainda não foi ativado no banco (falta rodar o SQL 06).",
+  HORA_INVALIDA: "Horário da saída inválido. Use o formato HH:MM.",
+  SAIDA_ANTES_ENTRADA: "A saída não pode ser antes do horário da entrada.",
+  SAIDA_NO_FUTURO: "A saída não pode ser depois do horário de agora.",
+  promot_web_definir_saida: "O horário da saída ainda não foi ativado no banco (falta rodar o SQL 07).",
+  promot_web_cancelar_visita:"O cancelamento ainda não foi ativado no banco (falta rodar o SQL 06).",
   IMGBB_FALHOU: "O ImgBB não aceitou a foto agora. Tente de novo em instantes.",
 };
 function traduzir(msg) {
@@ -309,8 +313,11 @@ const temSaida = (v) => !!(v && v.saida);
 function situacaoHtml(r) {
   if (!r) return '<span class="tag pend">Pendente</span>';
   if (temSaida(r)) return `<span class="tag saiu num">Entrada ${horaDe(r.data)} · Saída ${horaDe(r.saida)}</span><div class="tempo num">${fmtTempo(r.minutos)} na loja</div>`;
+  if (esqueceuSaida(r)) return `<span class="tag alerta num">Na loja desde ${horaDe(r.data)}</span><div class="tempo alerta num">há ${fmtTempo(minutosDesde(r.data))} — esqueceu a saída?</div>`;
   return `<span class="tag ok num">Na loja desde ${horaDe(r.data)}</span><div class="tempo num">há ${fmtTempo(minutosDesde(r.data))}</div>`;
 }
+// entrou há muito tempo e ainda não tem saída → provável esquecimento
+const esqueceuSaida = (r) => r && !temSaida(r) && minutosDesde(r.data) >= (Number(CFG.ALERTA_SAIDA_HORAS) || 4) * 60;
 function botaoSaida(r) {
   return r && !temSaida(r) ? `<button class="btn btn-saida" type="button" data-saida="${r.id}">Registrar saída</button>` : "";
 }
@@ -397,7 +404,7 @@ function renderRegistrosHoje() {
       · <button class="link-editar btn-editar-visita" type="button" data-visita="${r.id}">editar</button>
       · <button class="link-editar link-cancelar" type="button" data-cancelar="${r.id}">cancelar</button></small>
       ${botaoSaida(r) ? `<div style="margin-top:6px">${botaoSaida(r)}</div>` : ""}</div>
-      <div class="hora num">${horaDe(r.data)}${temSaida(r) ? `<small>até ${horaDe(r.saida)}</small><small>${fmtTempo(r.minutos)}</small>` : "<small>na loja</small>"}</div></div>`;
+      <div class="hora num">${horaDe(r.data)}${temSaida(r) ? `<small>até ${horaDe(r.saida)}</small><small>${fmtTempo(r.minutos)}</small>` : esqueceuSaida(r) ? '<small class="alerta">esqueceu a saída?</small>' : "<small>na loja</small>"}</div></div>`;
   }).join("") : '<p class="vazio">Nenhuma visita registrada hoje nesta loja.</p>';
   const pend = fornDoDia().filter((f) => !visitaDe(f.fornecedor)).length;
   const c = $("#nav-pendentes"); c.textContent = pend; c.hidden = pend === 0;
@@ -621,6 +628,10 @@ function abrirEdicaoVisita(v) {
         <a href="${esc(v.foto)}" target="_blank" rel="noopener"><img class="foto-visita" src="${esc(v.foto)}" alt="Foto do registro"></a></div>` : ""}
       <label class="campo"><span>Comentário sobre a visita</span>
         <textarea id="ed-obs" placeholder="Ex.: reposição incompleta, gôndola desorganizada, promotor saiu antes do horário">${esc(obsDe(v))}</textarea></label>
+      <label class="campo"><span>Horário da saída</span>
+        <input id="ed-saida" type="time" value="${temSaida(v) ? horaDe(v.saida) : ""}">
+        <small class="dica">${temSaida(v) ? "Corrija se a saída foi registrada no horário errado. Apague o horário para desfazer a saída."
+          : `Esqueceram de registrar a saída? Informe o horário em que o promotor saiu (depois das ${horaDe(v.data)}).`}</small></label>
       ${podeTrocarFoto ? `<div class="campo"><span>${temFoto ? "Trocar a foto (opcional)" : "Foto (opcional)"}</span>
         <label class="soltar" id="ed-soltar" for="ed-foto">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="9" cy="9" r="2"/><path d="m21 15-4.5-4.5L5 21"/></svg>
@@ -656,6 +667,10 @@ async function salvarEdicaoVisita(v) {
   try {
     const link = fotoEdicao ? await enviarFoto(fotoEdicao) : "";
     await rpc("promot_web_editar_visita", { p_token: sessao.token, p_loja: lojaAtual, p_id: v.id, p_obs: $("#ed-obs").value, p_foto: link });
+    const novaSaida = $("#ed-saida").value.trim();
+    if (novaSaida !== (temSaida(v) ? horaDe(v.saida) : "")) {
+      await rpc("promot_web_definir_saida", { p_token: sessao.token, p_loja: lojaAtual, p_id: v.id, p_hora: novaSaida });
+    }
     fecharGaveta(); await recarregar(false);
     toast("Registro de " + v.fornecedor + " atualizado", "ok");
   } catch (err) {

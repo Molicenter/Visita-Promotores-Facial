@@ -2,7 +2,6 @@
   "name": "Registro Promotores · Molicenter",
   "short_name": "Promotores",
   "description": "Agenda, entrada e saída dos promotores",
-  "id": "./",
   "start_url": "./",
   "scope": "./",
   "display": "standalone",

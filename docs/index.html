@@ -6,6 +6,11 @@
   <meta name="theme-color" content="#0B3D63">
   <title>Registro Promotores · Molicenter</title>
   <link rel="icon" href="logo.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icone-apple-180.png">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Promotores">
   <script>
     // tema: claro por padrão; cada computador lembra a escolha
     try { var t = localStorage.getItem("promot_web_tema"); if (t === "dark" || t === "light") document.documentElement.dataset.theme = t; } catch (e) {}
@@ -249,5 +254,8 @@
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
   <script src="config.js?v=1.1.1"></script>
   <script src="app.js?v=1.1.1"></script>
+  <script>
+    if ("serviceWorker" in navigator) window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
+  </script>
 </body>
 </html>

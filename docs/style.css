@@ -424,3 +424,9 @@ td .sub-cel { color: var(--texto-suave); font-size: .8rem; }
 .tag.alerta { background: var(--laranja-claro); color: var(--laranja); }
 .tempo.alerta, .registro .hora small.alerta { color: var(--laranja); }
 #ed-saida { max-width: 160px; }
+
+/* 1.1.2 — visitas fora da agenda aparecem na lista da Agenda */
+.kpi.clicavel { cursor: pointer; transition: transform .12s, box-shadow .12s; }
+.kpi.clicavel:hover { transform: translateY(-2px); }
+tr.linha-fora td:first-child { box-shadow: inset 3px 0 0 var(--vermelho); }
+tr.linha-fora .tag.fora { margin-top: 6px; display: inline-block; }

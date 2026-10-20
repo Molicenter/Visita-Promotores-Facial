@@ -423,36 +423,53 @@ function renderAgenda() {
   const ok = dia.filter((f) => visitaDe(f.fornecedor)).length;
   const pend = dia.length - ok;
   const nomesDia = new Set(dia.map((f) => norm(f.fornecedor)));
-  const fora = new Set(dados.visitas.filter((v) => !nomesDia.has(norm(v.fornecedor))).map((v) => norm(v.fornecedor))).size;
+  // visitas de fornecedores que NÃO estão previstos para hoje (registro manual ou facial em dia fora da agenda)
+  const visitasFora = dados.visitas.filter((v) => !nomesDia.has(norm(v.fornecedor)));
+  const fora = new Set(visitasFora.map((v) => norm(v.fornecedor))).size;
   const pct = dia.length ? Math.round((ok / dia.length) * 100) : 0;
   $("#kpis").innerHTML = `
     <div class="kpi destaque"><small>Previstos hoje</small><strong class="num">${dia.length}</strong><span>${hj.sigla}, ${hj.data}</span></div>
     <div class="kpi verde"><small>Já passaram</small><strong class="num">${ok}</strong><div class="progresso"><i style="width:${pct}%;background:var(--verde)"></i></div></div>
-    <div class="kpi laranja"><small>Pendentes</small><strong class="num">${pend}</strong><span>ainda não registraram</span></div>
-    <div class="kpi"><small>Fora da agenda</small><strong class="num">${fora}</strong><span>vieram em dia não previsto</span></div>
-    <div class="kpi magenta"><small>Na loja agora</small><strong class="num">${dados.visitas.filter((v) => !temSaida(v)).length}</strong><span>entraram e ainda não saíram</span></div>`;
+    <div class="kpi laranja clicavel" data-f="pend"><small>Pendentes</small><strong class="num">${pend}</strong><span>ainda não registraram</span></div>
+    <div class="kpi clicavel" data-f="fora"><small>Fora da agenda</small><strong class="num">${fora}</strong><span>vieram em dia não previsto</span></div>
+    <div class="kpi magenta clicavel" data-f="naloja"><small>Na loja agora</small><strong class="num">${dados.visitas.filter((v) => !temSaida(v)).length}</strong><span>entraram e ainda não saíram</span></div>`;
   const q = norm($("#busca-agenda").value);
-  const linhas = dia.filter((f) => {
-    const r = visitaDe(f.fornecedor);
+  const semCadastro = (nome) => ({ id: "", fornecedor: nome, marca: "", promotor: "", telefone: "", comprador: "", frequencia: "" });
+  const itens = dia.map((f) => ({ f, r: visitaDe(f.fornecedor), fora: false }))
+    .concat(visitasFora.map((v) => ({
+      f: dados.fornecedores.find((x) => norm(x.fornecedor) === norm(v.fornecedor)) || semCadastro(v.fornecedor),
+      r: v, fora: true,
+    })));
+  const linhas = itens.filter(({ f, r, fora: ehFora }) => {
     if (filtroAgenda === "pend" && r) return false;
+    if (filtroAgenda === "fora" && !ehFora) return false;
     if (filtroAgenda === "naloja" && !(r && !temSaida(r))) return false;
     if (filtroAgenda === "saiu" && !(r && temSaida(r))) return false;
     return !q || norm([f.fornecedor, f.marca, f.promotor].join(" ")).includes(q);
   });
-  $("#tb-agenda").innerHTML = linhas.length ? linhas.map((f) => {
-    const r = visitaDe(f.fornecedor);
-    return `<tr><td><div class="principal-cel">${esc(f.fornecedor)}</div><div class="sub-cel">${esc(f.marca)}</div></td>
+  $("#tb-agenda").innerHTML = linhas.length ? linhas.map(({ f, r, fora: ehFora }) => {
+    const marcaFora = ehFora ? `<div><span class="tag fora">Fora da agenda${r.frequencia === "FACIAL" ? " · facial" : " · manual"}</span></div>` : "";
+    return `<tr class="${ehFora ? "linha-fora" : ""}"><td><div class="principal-cel">${esc(f.fornecedor)}</div><div class="sub-cel">${esc(f.marca)}</div>${marcaFora}</td>
       <td><div>${esc(f.promotor)}</div><div class="sub-cel num">${esc(f.telefone)}</div></td><td>${esc(f.comprador)}</td>
       <td>${diasHtml(f.frequencia)}</td>
       <td>${situacaoHtml(r)}</td>
       <td style="text-align:right"><div class="acoes-linha">${botaoEntrada(f, r)}${botaoSaida(r)}${r ?`<button class="btn btn-texto btn-editar-visita" type="button" data-visita="${r.id}">${obsDe(r) || temFotoValida(r.foto) ? "Ver / editar" : "Editar"}</button>` : ""}${botaoCancelar(r)}</div></td></tr>`;
-  }).join("") : `<tr><td colspan="6" class="vazio">${dia.length ? "Nada para mostrar com esse filtro." : "Nenhum fornecedor com visita prevista para hoje."}</td></tr>`;
+  }).join("") : `<tr><td colspan="6" class="vazio">${itens.length ? "Nada para mostrar com esse filtro." : "Nenhum fornecedor com visita prevista para hoje."}</td></tr>`;
+}
+function escolherFiltroAgenda(f) {
+  filtroAgenda = f;
+  $$("#filtro-agenda button").forEach((x) => x.classList.toggle("sel", x.dataset.f === f));
+  renderAgenda();
 }
 $("#filtro-agenda").addEventListener("click", (e) => {
   const b = e.target.closest("button"); if (!b) return;
-  filtroAgenda = b.dataset.f;
-  $$("#filtro-agenda button").forEach((x) => x.classList.toggle("sel", x === b));
-  renderAgenda();
+  escolherFiltroAgenda(b.dataset.f);
+});
+// clicar nos quadros Pendentes / Fora da agenda / Na loja agora aplica o filtro e leva até a lista
+$("#kpis").addEventListener("click", (e) => {
+  const k = e.target.closest(".kpi[data-f]"); if (!k) return;
+  escolherFiltroAgenda(k.dataset.f);
+  $("#filtro-agenda").scrollIntoView({ behavior: "smooth", block: "start" });
 });
 $("#busca-agenda").addEventListener("input", renderAgenda);
 

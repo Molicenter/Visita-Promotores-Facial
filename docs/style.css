@@ -93,6 +93,8 @@ input, select, textarea { font: inherit; color: inherit; }
 .campo textarea { min-height: 80px; resize: vertical; }
 .campo input:focus, .campo select:focus, .campo textarea:focus { outline: none; border-color: var(--azul); box-shadow: 0 0 0 3px color-mix(in srgb, var(--azul) 18%, transparent); }
 .senha { -webkit-text-security: disc; }
+.manter-conectado { display: flex; align-items: center; gap: 10px; font-size: .9rem; color: var(--texto-suave); cursor: pointer; user-select: none; }
+.manter-conectado input { width: 18px; height: 18px; margin: 0; accent-color: var(--azul); cursor: pointer; }
 .erro { color: var(--vermelho); font-size: .88rem; margin: 0; }
 .dica { color: var(--texto-suave); font-size: .82rem; margin: 0; }
 

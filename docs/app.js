@@ -172,6 +172,7 @@ function mostrarLogin() {
   sel.innerHTML = '<option value="">Escolha...</option>' +
     ["Administrador", ...LOJAS.map((l) => "Loja " + l)].map((u) => `<option>${u}</option>`).join("");
   try { const u = localStorage.getItem("promot_web_ultimo_usuario"); if (u) sel.value = u; } catch {}
+  try { $("#login-manter").checked = localStorage.getItem("promot_web_manter") !== "0"; } catch {}
   setTimeout(() => (sel.value ? $("#login-senha") : sel).focus(), 50);
 }
 function erroLogin(msg) { const p = $("#login-erro"); p.textContent = msg || ""; p.hidden = !msg; }
@@ -185,10 +186,12 @@ $("#form-login").addEventListener("submit", async (e) => {
   erroLogin("");
   $("#btn-entrar").disabled = true;
   try {
-    const r = await rpc("promot_web_login", { p_usuario: usuario, p_senha: senha });
+    const manter = $("#login-manter").checked;
+    const r = await rpc("promot_web_login", { p_usuario: usuario, p_senha: senha, p_manter: manter });
     sessao = r;
     gravarSessao(sessao);
     try { localStorage.setItem("promot_web_ultimo_usuario", usuario); } catch {}
+    try { localStorage.setItem("promot_web_manter", manter ? "1" : "0"); } catch {}
     $("#login-senha").value = "";
     await iniciarApp();
   } catch (err) {

@@ -2,7 +2,7 @@
 // "Rede primeiro": sempre busca a versão nova; só usa a cópia guardada se estiver sem internet.
 // As chamadas ao Supabase e aos sites de bibliotecas NÃO passam por aqui (são sempre ao vivo).
 const PREFIXO = "molicenter-promotores-";
-const CACHE = PREFIXO + "v1";
+const CACHE = PREFIXO + "v2";
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(["./", "manifest.json"])).catch(() => {}).then(() => self.skipWaiting()));

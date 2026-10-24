@@ -430,3 +430,32 @@ td .sub-cel { color: var(--texto-suave); font-size: .8rem; }
 .kpi.clicavel:hover { transform: translateY(-2px); }
 tr.linha-fora td:first-child { box-shadow: inset 3px 0 0 var(--vermelho); }
 tr.linha-fora .tag.fora { margin-top: 6px; display: inline-block; }
+
+/* ---------- apuração de visitas (v1.2.0) ---------- */
+.apu-filtros { margin-bottom: 6px; }
+.apu-data { display: inline-flex; align-items: center; gap: 6px; font-size: .85rem; font-weight: 600; color: var(--texto-suave); }
+.apu-data input, .apu-data select {
+  min-height: 40px; border: 1.5px solid var(--borda); border-radius: 10px; padding: 6px 10px;
+  background: var(--superficie); color: var(--texto); font: inherit; font-weight: 600;
+}
+.apu-data input:focus, .apu-data select:focus { outline: none; border-color: var(--azul); }
+.apu-tab th.n, .apu-tab td.n { text-align: right; font-variant-numeric: tabular-nums; }
+.apu-tab th.c, .apu-tab td.c { text-align: center; }
+.apu-tab tbody tr.clicavel { cursor: pointer; }
+.apu-tab tbody tr.clicavel:hover td { background: var(--azul-claro); }
+.apu-tab tr.total td { font-weight: 800; border-top: 1.5px solid var(--borda); }
+.apu-barra { display: flex; align-items: center; gap: 10px; }
+.apu-barra .progresso { flex: 1; margin: 0; min-width: 80px; }
+.apu-barra b { min-width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+.pct { white-space: nowrap; display: inline-block; min-width: 52px; text-align: center; font-weight: 800; font-size: .8rem; padding: 3px 8px; border-radius: 8px; font-variant-numeric: tabular-nums; }
+.pct.bom { background: var(--verde-claro); color: var(--verde); }
+.pct.medio { background: var(--laranja-claro); color: var(--laranja); }
+.pct.ruim { background: var(--vermelho-claro); color: var(--vermelho); }
+.pct.sem { background: var(--azul-claro); color: var(--texto-suave); font-weight: 600; }
+.apu-tab th.ordena { cursor: pointer; user-select: none; }
+.apu-tab th.ordena:hover { color: var(--azul); }
+.apu-tab th.ordena.sel { color: var(--azul); }
+.matriz td.c { padding: 8px 6px; }
+.matriz .cel { display: block; font-size: .72rem; color: var(--texto-fraco); margin-top: 2px; font-variant-numeric: tabular-nums; }
+.kpi.vermelho strong { color: var(--vermelho); }
+.apu-tab tr.sel-loja td { background: var(--magenta-claro); }

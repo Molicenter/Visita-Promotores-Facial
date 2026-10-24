@@ -15,7 +15,7 @@
     // tema: claro por padrão; cada computador lembra a escolha
     try { var t = localStorage.getItem("promot_web_tema"); if (t === "dark" || t === "light") document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=1.1.2">
+  <link rel="stylesheet" href="style.css?v=1.2.0">
 </head>
 <body>
   <!-- =================== LOGIN =================== -->
@@ -69,6 +69,10 @@
         <button data-pg="facial" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3Z"/><circle cx="12" cy="13" r="3.5"/></svg>
           Cadastro facial</button>
+        <div class="nav-rotulo so-admin" hidden>Gestão</div>
+        <button data-pg="apuracao" type="button" class="so-admin" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M3 3v18h18"/><path d="M7 15v2M11 11v6M15 8v9M19 5v12"/></svg>
+          Apuração de visitas</button>
       </nav>
       <div class="conta">
         <strong id="conta-nome"></strong>
@@ -243,6 +247,52 @@
             </div>
           </div>
         </section>
+        <!-- ---------- APURAÇÃO (só administrador) ---------- -->
+        <section class="pagina" id="pg-apuracao" hidden>
+          <div class="cartao">
+            <div class="barra-filtros apu-filtros">
+              <div class="chips" id="apu-periodos">
+                <button data-p="mes" class="sel" type="button">Este mês</button>
+                <button data-p="mesant" type="button">Mês passado</button>
+                <button data-p="7" type="button">Últimos 7 dias</button>
+                <button data-p="30" type="button">Últimos 30 dias</button>
+              </div>
+              <label class="apu-data">De <input type="date" id="apu-ini"></label>
+              <label class="apu-data">até <input type="date" id="apu-fim"></label>
+              <label class="apu-data">Loja
+                <select id="apu-loja"><option value="">Todas</option></select></label>
+              <button class="btn btn-primario" type="button" id="btn-apurar">Atualizar</button>
+            </div>
+            <p class="dica" id="apu-nota"></p>
+          </div>
+          <div class="kpis" id="apu-kpis"></div>
+          <div class="cartao">
+            <h3>Cumprimento por loja</h3>
+            <div class="tabela-wrap">
+              <table class="apu-tab">
+                <thead><tr><th>Loja</th><th class="n">Fornec. na agenda</th><th class="n">Visitas previstas</th><th class="n">Realizadas</th><th style="min-width:180px">% cumprimento</th><th class="n">Fora da agenda</th><th class="n">Nunca vieram</th></tr></thead>
+                <tbody id="tb-apu-lojas"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="cartao">
+            <div class="barra-filtros">
+              <div class="chips" id="apu-vis">
+                <button data-v="lista" class="sel" type="button">Por fornecedor e loja</button>
+                <button data-v="matriz" type="button">Matriz fornecedor × loja</button>
+              </div>
+              <div class="chips" id="apu-filtro">
+                <button data-f="todos" class="sel" type="button">Todos</button>
+                <button data-f="baixo" type="button">Abaixo de 50%</button>
+                <button data-f="nunca" type="button">Nunca vieram</button>
+                <button data-f="fora" type="button">Sem agenda / fora do dia</button>
+              </div>
+              <input class="busca" id="busca-apu" type="search" placeholder="Buscar fornecedor ou comprador">
+              <button class="btn" type="button" id="btn-apu-csv">Baixar planilha</button>
+            </div>
+            <div class="tabela-wrap"><table class="apu-tab" id="tab-apu"></table></div>
+          </div>
+        </section>
       </main>
     </div>
   </div>
@@ -253,8 +303,8 @@
   <div id="carregando" class="carregando" hidden><div class="spinner"></div></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
-  <script src="config.js?v=1.1.2"></script>
-  <script src="app.js?v=1.1.2"></script>
+  <script src="config.js?v=1.2.0"></script>
+  <script src="app.js?v=1.2.0"></script>
   <script>
     if ("serviceWorker" in navigator) window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
   </script>

@@ -87,6 +87,10 @@ const MENSAGENS = {
   SAIDA_NO_FUTURO: "A saída não pode ser depois do horário de agora.",
   promot_web_definir_saida: "O horário da saída ainda não foi ativado no banco (falta rodar o SQL 07).",
   promot_web_cancelar_visita:"O cancelamento ainda não foi ativado no banco (falta rodar o SQL 06).",
+  SEM_PERMISSAO: "Só o administrador pode ver a apuração.",
+  PERIODO_INVALIDO: "Escolha um período válido.",
+  PERIODO_MUITO_LONGO: "Escolha um período de no máximo 400 dias.",
+  promot_web_apuracao: "A apuração ainda não foi ativada no banco (falta rodar o SQL 08).",
   IMGBB_FALHOU: "O ImgBB não aceitou a foto agora. Tente de novo em instantes.",
 };
 function traduzir(msg) {
@@ -214,6 +218,9 @@ async function iniciarApp() {
   const admin = sessao.perfil === "analista";
   $("#conta-nome").textContent = sessao.usuario;
   $("#conta-perfil").textContent = admin ? "Administrador · vê todas as lojas" : "Fiscal de loja";
+  $$(".so-admin").forEach((el) => (el.hidden = !admin));
+  if (admin && $("#apu-loja").options.length === 1)
+    $("#apu-loja").insertAdjacentHTML("beforeend", LOJAS.map((l) => `<option value="${+l}">Loja ${l}</option>`).join(""));
 
   if (admin) {
     let salva = null;
@@ -266,6 +273,7 @@ const PAGINAS = {
   manual: ["Registro manual", "Para quando a câmera não reconhecer ou o promotor não tiver rosto cadastrado."],
   promotores: ["Fornecedores e promotores", "Cadastro da loja: quem atende, telefone e dias de visita."],
   facial: ["Cadastro facial", "Foto de referência que a entrada facial usa para reconhecer o promotor."],
+  apuracao: ["Apuração de visitas", "Visitas previstas pela frequência × visitas registradas, por fornecedor e por loja."],
 };
 function irPara(pg) {
   paginaAtual = pg;
@@ -276,6 +284,7 @@ function irPara(pg) {
     ? `Fornecedores com visita prevista para ${hojeSP().sigla} e quem já passou pela loja.`
     : PAGINAS[pg][1];
   window.scrollTo(0, 0);
+  if (pg === "apuracao" && !apu.carregado) escolherPeriodoApu("mes");
 }
 $("#nav").addEventListener("click", (e) => { const b = e.target.closest("button[data-pg]"); if (b) irPara(b.dataset.pg); });
 
@@ -1135,6 +1144,177 @@ function criarBusca(sel, placeholder) {
 }
 buscas.manual = criarBusca($("#man-forn"), "Digite o nome do fornecedor...");
 buscas.facial = criarBusca($("#fac-empresa"), "Digite o nome da empresa...");
+
+// ============================================================
+// Apuração de visitas (só administrador) — v1.2.0
+// Previstas = dias de visita da frequência cadastrada no período
+// Realizadas = dias previstos em que o fornecedor registrou entrada
+// Fora da agenda = entrada em dia não previsto (ou fornecedor sem frequência)
+// ============================================================
+const apu = { linhas: [], vis: "lista", filtro: "todos", ordem: "pct", asc: true, carregado: false, ini: "", fim: "" };
+const isoSP = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo" }).format(d);
+const brData = (iso) => (iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "—");
+const pctDe = (r, p) => (p ? Math.round((r / p) * 100) : null);
+function pctHtml(r, p) {
+  const v = pctDe(r, p);
+  if (v === null) return '<span class="pct sem">sem agenda</span>';
+  return `<span class="pct ${v >= 80 ? "bom" : v >= 50 ? "medio" : "ruim"}">${v}%</span>`;
+}
+function corPct(v) { return v >= 80 ? "var(--verde)" : v >= 50 ? "var(--laranja)" : "var(--vermelho)"; }
+
+function periodoApu(tipo) {
+  const hoje = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Sao_Paulo" }));
+  const ontem = new Date(hoje); ontem.setDate(hoje.getDate() - 1);
+  const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  if (tipo === "mesant") return [iso(new Date(hoje.getFullYear(), hoje.getMonth() - 1, 1)), iso(new Date(hoje.getFullYear(), hoje.getMonth(), 0))];
+  if (tipo === "7" || tipo === "30") { const i = new Date(ontem); i.setDate(ontem.getDate() - (Number(tipo) - 1)); return [iso(i), iso(ontem)]; }
+  // este mês, até ontem (o dia de hoje ainda está acontecendo); no dia 1º, só hoje
+  const ini = new Date(hoje.getFullYear(), hoje.getMonth(), 1);
+  return hoje.getDate() === 1 ? [iso(hoje), iso(hoje)] : [iso(ini), iso(ontem)];
+}
+function escolherPeriodoApu(tipo) {
+  $$("#apu-periodos button").forEach((b) => b.classList.toggle("sel", b.dataset.p === tipo));
+  const [i, f] = periodoApu(tipo);
+  $("#apu-ini").value = i; $("#apu-fim").value = f;
+  carregarApuracao();
+}
+$("#apu-periodos").addEventListener("click", (e) => { const b = e.target.closest("button[data-p]"); if (b) escolherPeriodoApu(b.dataset.p); });
+["#apu-ini", "#apu-fim"].forEach((s) => $(s).addEventListener("change", () => $$("#apu-periodos button").forEach((b) => b.classList.remove("sel"))));
+$("#btn-apurar").addEventListener("click", carregarApuracao);
+$("#apu-loja").addEventListener("change", renderApuracao);
+$("#busca-apu").addEventListener("input", renderApuracao);
+$("#apu-vis").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-v]"); if (!b) return;
+  apu.vis = b.dataset.v; $$("#apu-vis button").forEach((x) => x.classList.toggle("sel", x === b)); renderApuracao();
+});
+$("#apu-filtro").addEventListener("click", (e) => {
+  const b = e.target.closest("button[data-f]"); if (!b) return;
+  apu.filtro = b.dataset.f; $$("#apu-filtro button").forEach((x) => x.classList.toggle("sel", x === b)); renderApuracao();
+});
+$("#tb-apu-lojas").addEventListener("click", (e) => {
+  const tr = e.target.closest("tr[data-loja]"); if (!tr) return;
+  $("#apu-loja").value = tr.dataset.loja; renderApuracao();
+  $("#apu-vis").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+$("#tab-apu").addEventListener("click", (e) => {
+  const th = e.target.closest("th[data-o]"); if (!th) return;
+  if (apu.ordem === th.dataset.o) apu.asc = !apu.asc; else { apu.ordem = th.dataset.o; apu.asc = th.dataset.o === "pct" || th.dataset.o === "fornecedor"; }
+  renderApuracao();
+});
+
+async function carregarApuracao() {
+  const ini = $("#apu-ini").value, fim = $("#apu-fim").value;
+  if (!ini || !fim || fim < ini) { toast("Escolha um período válido.", "erro"); return; }
+  carregando(true);
+  try {
+    const r = await rpc("promot_web_apuracao", { p_token: sessao.token, p_ini: ini, p_fim: fim, p_loja: null });
+    apu.linhas = (r && r.linhas) || [];
+    apu.ini = ini; apu.fim = fim; apu.carregado = true;
+    renderApuracao();
+  } catch (e) { toast(e.message, "erro"); }
+  finally { carregando(false); }
+}
+
+function somar(ls) {
+  return ls.reduce((a, l) => {
+    a.previstas += l.previstas; a.realizadas += l.realizadas; a.fora += l.fora;
+    if (l.previstas > 0) { a.agenda++; if (l.realizadas === 0) a.nunca++; }
+    return a;
+  }, { previstas: 0, realizadas: 0, fora: 0, agenda: 0, nunca: 0 });
+}
+
+function renderApuracao() {
+  if (!apu.carregado) return;
+  const lojaSel = $("#apu-loja").value;
+  const doPeriodo = apu.linhas.filter((l) => !lojaSel || String(l.loja) === lojaSel);
+  const hojeIso = isoSP(new Date());
+  $("#apu-nota").textContent = `Período ${brData(apu.ini)} a ${brData(apu.fim)}. Previstas = dias de visita da frequência cadastrada hoje em cada loja. `
+    + (apu.fim >= hojeIso ? "O dia de hoje entra como previsto mesmo para quem ainda vai passar. " : "")
+    + "Feriados e lojas fechadas não são descontados.";
+
+  // ---------- quadros ----------
+  const t = somar(doPeriodo);
+  const pct = pctDe(t.realizadas, t.previstas) ?? 0;
+  $("#apu-kpis").innerHTML = `
+    <div class="kpi destaque"><small>Visitas previstas</small><strong class="num">${t.previstas}</strong><span>${t.agenda} fornecedores com frequência${lojaSel ? " · Loja " + lojaSel.padStart(2, "0") : ""}</span></div>
+    <div class="kpi verde"><small>Realizadas</small><strong class="num">${t.realizadas}</strong><div class="progresso"><i style="width:${pct}%;background:var(--verde)"></i></div></div>
+    <div class="kpi"><small>Cumprimento</small><strong class="num" style="color:${corPct(pct)}">${pct}%</strong><span>realizadas ÷ previstas</span></div>
+    <div class="kpi laranja"><small>Fora da agenda</small><strong class="num">${t.fora}</strong><span>visitas em dia não previsto</span></div>
+    <div class="kpi vermelho"><small>Nunca vieram</small><strong class="num">${t.nunca}</strong><span>tinham agenda e não registraram</span></div>`;
+
+  // ---------- por loja (sempre todas, a loja escolhida fica marcada) ----------
+  const porLoja = LOJAS.map((l) => ({ loja: +l, ...somar(apu.linhas.filter((x) => x.loja === +l)) }));
+  const geral = somar(apu.linhas);
+  const linhaLoja = (o, rotulo, extra = "") => {
+    const p = pctDe(o.realizadas, o.previstas);
+    return `<tr ${extra}><td><b>${rotulo}</b></td><td class="n">${o.agenda}</td><td class="n">${o.previstas}</td><td class="n">${o.realizadas}</td>
+      <td>${p === null ? '<span class="pct sem">sem agenda</span>' : `<div class="apu-barra"><div class="progresso"><i style="width:${p}%;background:${corPct(p)}"></i></div><b>${p}%</b></div>`}</td>
+      <td class="n">${o.fora}</td><td class="n">${o.nunca}</td></tr>`;
+  };
+  $("#tb-apu-lojas").innerHTML = porLoja.map((o) =>
+    linhaLoja(o, "Loja " + String(o.loja).padStart(2, "0"), `class="clicavel${String(o.loja) === lojaSel ? " sel-loja" : ""}" data-loja="${o.loja}" title="Ver os fornecedores desta loja"`)).join("")
+    + linhaLoja(geral, "Rede", 'class="total"');
+
+  // ---------- fornecedores ----------
+  const q = norm($("#busca-apu").value);
+  const passa = (l) => {
+    if (apu.filtro === "baixo" && !(l.previstas > 0 && l.realizadas / l.previstas < 0.5)) return false;
+    if (apu.filtro === "nunca" && !(l.previstas > 0 && l.realizadas === 0)) return false;
+    if (apu.filtro === "fora" && !(l.fora > 0)) return false;
+    return !q || norm(`${l.fornecedor} ${l.comprador || ""}`).includes(q);
+  };
+  if (apu.vis === "matriz") return renderMatriz(apu.linhas.filter(passa));
+
+  const ls = doPeriodo.filter(passa);
+  const chave = {
+    fornecedor: (l) => norm(l.fornecedor), loja: (l) => l.loja, previstas: (l) => l.previstas, realizadas: (l) => l.realizadas,
+    pct: (l) => (l.previstas ? l.realizadas / l.previstas : 9), fora: (l) => l.fora, ultima: (l) => l.ultima || "",
+  }[apu.ordem] || ((l) => 0);
+  ls.sort((a, b) => { const x = chave(a), y = chave(b); return (x < y ? -1 : x > y ? 1 : norm(a.fornecedor) < norm(b.fornecedor) ? -1 : 1) * (apu.asc ? 1 : -1); });
+  const th = (o, txt, cls = "") => `<th class="ordena ${cls} ${apu.ordem === o ? "sel" : ""}" data-o="${o}">${txt}${apu.ordem === o ? (apu.asc ? " ▲" : " ▼") : ""}</th>`;
+  $("#tab-apu").classList.remove("matriz");
+  $("#tab-apu").innerHTML = `<thead><tr>${th("fornecedor", "Fornecedor")}${th("loja", "Loja")}<th>Dias de visita</th>${th("previstas", "Previstas", "n")}${th("realizadas", "Realizadas", "n")}${th("pct", "%", "c")}${th("fora", "Fora da agenda", "n")}${th("ultima", "Última visita")}<th class="n">Tempo médio</th></tr></thead>
+    <tbody>${ls.length ? ls.map((l) => `<tr>
+      <td><div class="principal-cel">${esc(l.fornecedor)}</div><div class="sub-cel">${esc(l.comprador || "")}</div></td>
+      <td>${String(l.loja).padStart(2, "0")}</td>
+      <td>${l.frequencia ? '<span class="dias">' + DIAS.map((d) => `<i class="${temDia(l.frequencia, d) ? "on" : ""}">${d}</i>`).join("") + "</span>" : '<span class="sub-cel">sem frequência</span>'}</td>
+      <td class="n">${l.previstas}</td><td class="n">${l.realizadas}</td><td class="c">${pctHtml(l.realizadas, l.previstas)}</td>
+      <td class="n">${l.fora || ""}</td><td>${brData(l.ultima)}</td><td class="n">${l.media_min ? fmtTempo(l.media_min) : "—"}</td></tr>`).join("")
+      : '<tr><td colspan="9" class="vazio">Nada para mostrar com esse filtro.</td></tr>'}</tbody>`;
+}
+
+function renderMatriz(ls) {
+  // uma linha por fornecedor, uma coluna por loja (% e realizadas/previstas)
+  const mapa = new Map();
+  ls.forEach((l) => {
+    const k = norm(l.fornecedor);
+    if (!mapa.has(k)) mapa.set(k, { nome: l.fornecedor, lojas: {} });
+    mapa.get(k).lojas[l.loja] = l;
+  });
+  const linhas = [...mapa.values()].map((m) => ({ ...m, t: somar(Object.values(m.lojas)) }));
+  linhas.sort((a, b) => b.t.previstas - a.t.previstas || norm(a.nome).localeCompare(norm(b.nome)));
+  $("#tab-apu").classList.add("matriz");
+  $("#tab-apu").innerHTML = `<thead><tr><th>Fornecedor</th>${LOJAS.map((l) => `<th class="c">Loja ${l}</th>`).join("")}<th class="c">Rede</th></tr></thead>
+    <tbody>${linhas.length ? linhas.map((m) => `<tr><td><div class="principal-cel">${esc(m.nome)}</div></td>
+      ${LOJAS.map((l) => { const x = m.lojas[+l]; return `<td class="c">${x ? pctHtml(x.realizadas, x.previstas) + `<span class="cel">${x.previstas ? `${x.realizadas}/${x.previstas}` : ""}${x.fora ? ` +${x.fora} fora` : ""}</span>` : '<span class="sub-cel">—</span>'}</td>`; }).join("")}
+      <td class="c">${pctHtml(m.t.realizadas, m.t.previstas)}<span class="cel">${m.t.realizadas}/${m.t.previstas}</span></td></tr>`).join("")
+      : `<tr><td colspan="${LOJAS.length + 2}" class="vazio">Nada para mostrar com esse filtro.</td></tr>`}</tbody>`;
+}
+
+$("#btn-apu-csv").addEventListener("click", () => {
+  if (!apu.carregado) return;
+  const lojaSel = $("#apu-loja").value;
+  const ls = apu.linhas.filter((l) => !lojaSel || String(l.loja) === lojaSel);
+  const cel = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  const cab = ["Loja", "Fornecedor", "Comprador", "Dias de visita", "Previstas", "Realizadas", "% Cumprimento", "Fora da agenda", "Última visita", "Tempo médio (min)"];
+  const corpo = ls.map((l) => [String(l.loja).padStart(2, "0"), l.fornecedor, l.comprador, l.frequencia, l.previstas, l.realizadas,
+    l.previstas ? String(Math.round((l.realizadas / l.previstas) * 1000) / 10).replace(".", ",") : "", l.fora, brData(l.ultima), l.media_min ?? ""]);
+  const csv = "﻿" + [cab, ...corpo].map((r) => r.map(cel).join(";")).join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  a.download = `apuracao-promotores_${apu.ini}_a_${apu.fim}${lojaSel ? "_loja" + lojaSel.padStart(2, "0") : ""}.csv`;
+  a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+});
 
 // ============================================================
 // Tema claro / escuro

@@ -233,8 +233,8 @@ async function iniciarApp() {
       LOJAS.map((l) => `<option value="${+l}" ${+l === lojaAtual ? "selected" : ""}>${l}</option>`).join("") + "</select>";
     $("#sel-loja").addEventListener("change", async (ev) => {
       const nova = Number(ev.target.value);
-      // "TT" (todas as lojas) só existe na Agenda; nas outras telas é preciso uma loja só
-      if (nova === 0 && paginaAtual !== "agenda") irPara("agenda");
+      // "TT" (todas as lojas) vale na Agenda e em Fornecedores; nas outras telas é preciso uma loja só
+      if (nova === 0 && !PAGINAS_TT.includes(paginaAtual)) irPara("agenda");
       await trocarLoja(nova);
       toast(nova === 0 ? "Mostrando todas as lojas" : "Mostrando a Loja " + String(nova).padStart(2, "0"));
     });
@@ -250,7 +250,8 @@ async function iniciarApp() {
   prepararFacial();          // modelos + câmera (em segundo plano)
 }
 
-// administrador: 0 = todas as lojas ("TT"), só na Agenda
+// administrador: 0 = todas as lojas ("TT"), na Agenda e em Fornecedores
+const PAGINAS_TT = ["agenda", "promotores"];
 let ultimaLoja = 1;
 const todasLojas = () => lojaAtual === 0;
 const lojaDe = (o) => (todasLojas() ? Number(o && o.loja) : lojaAtual);
@@ -294,6 +295,7 @@ const PAGINAS = {
   apuracao: ["Apuração de visitas", "Visitas previstas pela frequência × visitas registradas, por fornecedor e por loja."],
 };
 function subtituloPagina(pg) {
+  if (pg === "promotores" && todasLojas()) return "Todas as lojas: quem atende cada loja, telefone e dias de visita.";
   if (pg !== "agenda") return PAGINAS[pg][1];
   return todasLojas()
     ? `Todas as lojas: fornecedores com visita prevista para ${hojeSP().sigla} e quem já passou.`
@@ -307,7 +309,7 @@ function irPara(pg) {
   $("#pg-sub").textContent = subtituloPagina(pg);
   window.scrollTo(0, 0);
   // saiu da Agenda com "TT": volta para a última loja escolhida
-  if (todasLojas() && pg !== "agenda" && pg !== "apuracao") {
+  if (todasLojas() && !PAGINAS_TT.includes(pg) && pg !== "apuracao") {
     trocarLoja(ultimaLoja).then(() => toast(`${PAGINAS[pg][0]} é por loja: mostrando a Loja ${lojaTxt(ultimaLoja)}`));
   }
   // o seletor de loja do topo só vale para as telas do dia a dia; a apuração tem filtro próprio
@@ -592,13 +594,21 @@ $("#form-manual").addEventListener("submit", async (e) => {
 // ============================================================
 function renderForn() {
   const q = norm($("#busca-forn").value);
-  const lista = dados.fornecedores.filter((f) => !q || norm([f.cod, f.fornecedor, f.marca, f.promotor, f.telefone].join(" ")).includes(q));
+  const tt = todasLojas();
+  $("#th-forn-loja").hidden = !tt;
+  const lista = dados.fornecedores
+    .filter((f) => !q || norm([f.cod, f.fornecedor, f.marca, f.promotor, f.telefone, tt ? "loja " + lojaTxt(f.loja) : ""].join(" ")).includes(q));
+  if (tt) lista.sort((a, b) => norm(a.fornecedor).localeCompare(norm(b.fornecedor)) || (a.loja - b.loja));
+  const lojasDistintas = new Set(lista.map((f) => f.loja)).size;
   $("#tb-forn").innerHTML = lista.length ? lista.map((f) => `<tr>
+    ${tt ? `<td><span class="tag loja-tt">Loja ${lojaTxt(f.loja)}</span></td>` : ""}
     <td class="num">${esc(f.cod)}</td>
     <td><div class="principal-cel">${esc(f.fornecedor)}</div><div class="sub-cel">${esc(f.marca)}</div></td>
     <td>${esc(f.promotor)}</td><td class="num">${esc(f.telefone)}</td><td>${diasHtml(f.frequencia)}</td>
     <td style="text-align:right"><button class="btn btn-texto" data-editar="${f.id}" type="button">Editar</button></td></tr>`).join("")
-    : `<tr><td colspan="6" class="vazio">${dados.fornecedores.length ? "Nenhum fornecedor encontrado." : "Nenhum fornecedor cadastrado nesta loja."}</td></tr>`;
+    : `<tr><td colspan="${tt ? 7 : 6}" class="vazio">${dados.fornecedores.length ? "Nenhum fornecedor encontrado." : (tt ? "Nenhum fornecedor cadastrado." : "Nenhum fornecedor cadastrado nesta loja.")}</td></tr>`;
+  $("#resumo-forn").textContent = tt && lista.length
+    ? `${lista.length} cadastro${lista.length > 1 ? "s" : ""} em ${lojasDistintas} loja${lojasDistintas > 1 ? "s" : ""}` : "";
 }
 $("#busca-forn").addEventListener("input", renderForn);
 $("#tb-forn").addEventListener("click", (e) => {
@@ -616,6 +626,9 @@ function abrirGaveta(f) {
     <form class="gaveta-corpo" id="gav-form" autocomplete="off">
       <div class="linha-2"><label class="campo"><span>Código</span><input id="g-cod" value="${esc(f.cod)}"></label>
       <label class="campo"><span>Comprador</span><input id="g-comp" value="${esc(f.comprador)}"></label></div>
+      ${todasLojas() ? (novo
+        ? `<label class="campo"><span>Loja</span><select id="g-loja"><option value="">Escolha a loja...</option>${LOJAS.map((l) => `<option value="${+l}">Loja ${l}</option>`).join("")}</select></label>`
+        : `<div class="campo"><span>Loja</span><div><span class="tag loja-tt">Loja ${lojaTxt(f.loja)}</span></div></div>`) : ""}
       <label class="campo"><span>Fornecedor</span><input id="g-forn" value="${esc(f.fornecedor)}"></label>
       <label class="campo"><span>Marcas</span><input id="g-marca" value="${esc(f.marca)}"></label>
       <div class="linha-2"><label class="campo"><span>Promotor</span><input id="g-prom" value="${esc(f.promotor)}"></label>
@@ -637,8 +650,8 @@ function abrirGaveta(f) {
     $("#g-nao").onclick = () => abrirGaveta(fornEditando);
     $("#g-sim").onclick = async () => {
       try {
-        await rpc("promot_web_remover_fornecedor", { p_token: sessao.token, p_loja: lojaAtual, p_id: f.id });
-        fecharGaveta(); await recarregar(false); toast(f.fornecedor + " removido da loja");
+        await rpc("promot_web_remover_fornecedor", { p_token: sessao.token, p_loja: lojaDe(f), p_id: f.id });
+        fecharGaveta(); await recarregar(false); toast(f.fornecedor + " removido da Loja " + lojaTxt(lojaDe(f)));
       } catch (err) { toast(err.message, "erro"); }
     };
   };
@@ -647,6 +660,9 @@ async function salvarForn(novo) {
   const nome = $("#g-forn").value.trim();
   const erro = $("#g-erro");
   if (!nome) { erro.textContent = "Preencha o nome do fornecedor."; erro.hidden = false; return; }
+  // com "TT": loja do cadastro que está sendo editado, ou a escolhida no formulário (novo)
+  const lojaSalvar = !todasLojas() ? lojaAtual : (novo ? Number($("#g-loja").value) : Number(fornEditando.loja));
+  if (!lojaSalvar) { erro.textContent = "Escolha a loja do fornecedor."; erro.hidden = false; return; }
   const dadosForn = {
     cod: $("#g-cod").value.trim(), fornecedor: nome, marca: $("#g-marca").value.trim(),
     comprador: $("#g-comp").value.trim(), promotor: $("#g-prom").value.trim(), telefone: $("#g-tel").value.trim(),
@@ -654,9 +670,10 @@ async function salvarForn(novo) {
   };
   const btn = $("#gav-salvar"); btn.disabled = true;
   try {
-    await rpc("promot_web_salvar_fornecedor", { p_token: sessao.token, p_loja: lojaAtual, p_id: novo ? null : fornEditando.id, p_dados: dadosForn });
+    await rpc("promot_web_salvar_fornecedor", { p_token: sessao.token, p_loja: lojaSalvar, p_id: novo ? null : fornEditando.id, p_dados: dadosForn });
     fecharGaveta(); await recarregar(false);
-    toast(novo ? nome + " cadastrado" : "Alterações de " + nome + " salvas", "ok");
+    const naLoja = todasLojas() ? " (Loja " + lojaTxt(lojaSalvar) + ")" : "";
+    toast((novo ? nome + " cadastrado" : "Alterações de " + nome + " salvas") + naLoja, "ok");
   } catch (err) {
     erro.textContent = err.message; erro.hidden = false; btn.disabled = false;
   }

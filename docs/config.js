@@ -11,5 +11,5 @@ window.CONFIG = {
   TAMANHO_MIN_ROSTO: 0.20,
   // depois de quantas horas sem saída a linha fica laranja com "esqueceu a saída?"
   ALERTA_SAIDA_HORAS: 5,
-  VERSAO: "1.3.0",
+  VERSAO: "1.3.1",
 };

@@ -318,6 +318,17 @@ function irPara(pg) {
 }
 $("#nav").addEventListener("click", (e) => { const b = e.target.closest("button[data-pg]"); if (b) irPara(b.dataset.pg); });
 
+// menu lateral retrátil (só no computador; fica lembrado neste navegador)
+function aplicarMenu(recolhido) {
+  $("#app").classList.toggle("menu-recolhido", recolhido);
+  $("#btn-menu").setAttribute("aria-expanded", String(!recolhido));
+  $("#btn-menu").title = recolhido ? "Mostrar o menu" : "Recolher o menu";
+  try { localStorage.setItem("promot_web_menu_recolhido", recolhido ? "1" : "0"); } catch {}
+}
+$$("#nav button[data-pg]").forEach((b) => { b.title = b.textContent.trim().replace(/\s*\d+$/, ""); });
+$("#btn-menu").addEventListener("click", () => aplicarMenu(!$("#app").classList.contains("menu-recolhido")));
+{ let r = false; try { r = localStorage.getItem("promot_web_menu_recolhido") === "1"; } catch {} aplicarMenu(r); }
+
 function renderTudo() {
   renderRegistrosHoje();
   renderAgenda();
@@ -592,24 +603,52 @@ $("#form-manual").addEventListener("submit", async (e) => {
 // ============================================================
 // Fornecedores (cadastro da loja)
 // ============================================================
+// cabeçalho clicável: ordena por loja, código, fornecedor, promotor ou telefone (clique de novo inverte)
+const fornOrd = { col: "fornecedor", asc: true };
+const semNone = (v) => (v == null || String(v).trim().toLowerCase() === "none" ? "" : String(v));
 function renderForn() {
   const q = norm($("#busca-forn").value);
   const tt = todasLojas();
-  $("#th-forn-loja").hidden = !tt;
+  if (!tt && fornOrd.col === "loja") fornOrd.col = "fornecedor";
   const lista = dados.fornecedores
-    .filter((f) => !q || norm([f.cod, f.fornecedor, f.marca, f.promotor, f.telefone, tt ? "loja " + lojaTxt(f.loja) : ""].join(" ")).includes(q));
-  if (tt) lista.sort((a, b) => norm(a.fornecedor).localeCompare(norm(b.fornecedor)) || (a.loja - b.loja));
+    .filter((f) => !q || norm([semNone(f.cod), f.fornecedor, f.marca, f.promotor, f.telefone, tt ? "loja " + lojaTxt(f.loja) : ""].join(" ")).includes(q));
+  const chave = {
+    loja: (f) => Number(f.loja) || 0,
+    cod: (f) => semNone(f.cod),
+    fornecedor: (f) => norm(f.fornecedor),
+    promotor: (f) => norm(f.promotor),
+    telefone: (f) => semNone(f.telefone),
+  };
+  const cmp = (a, b, k) => {
+    const x = chave[k](a), y = chave[k](b);
+    if (typeof x === "number") return x - y;
+    if (!x && y) return 1; if (x && !y) return -1;   // vazios sempre no fim
+    return x.localeCompare(y, "pt-BR", { numeric: true });
+  };
+  // desempate: fornecedor e loja
+  const desempate = fornOrd.col === "loja" ? "fornecedor" : "loja";
+  lista.sort((a, b) => (fornOrd.asc ? 1 : -1) * cmp(a, b, fornOrd.col) || cmp(a, b, desempate) || cmp(a, b, "fornecedor"));
+
+  const th = (c, txt) => `<th class="ordena ${fornOrd.col === c ? "sel" : ""}" data-of="${c}" title="Ordenar por ${txt.toLowerCase()}">${txt}${fornOrd.col === c ? (fornOrd.asc ? " ▲" : " ▼") : ""}</th>`;
+  $("#th-forn").innerHTML = (tt ? th("loja", "Loja") : "") + th("cod", "Código") + th("fornecedor", "Fornecedor") +
+    th("promotor", "Promotor") + th("telefone", "Telefone") + "<th>Dias de visita</th><th class=\"col-acao\"></th>";
+
   const lojasDistintas = new Set(lista.map((f) => f.loja)).size;
   $("#tb-forn").innerHTML = lista.length ? lista.map((f) => `<tr>
     ${tt ? `<td><span class="tag loja-tt">Loja ${lojaTxt(f.loja)}</span></td>` : ""}
-    <td class="num">${esc(f.cod)}</td>
+    <td class="num">${esc(semNone(f.cod))}</td>
     <td><div class="principal-cel">${esc(f.fornecedor)}</div><div class="sub-cel">${esc(f.marca)}</div></td>
-    <td>${esc(f.promotor)}</td><td class="num">${esc(f.telefone)}</td><td>${diasHtml(f.frequencia)}</td>
-    <td style="text-align:right"><button class="btn btn-texto" data-editar="${f.id}" type="button">Editar</button></td></tr>`).join("")
+    <td>${esc(f.promotor)}</td><td class="num tel">${esc(semNone(f.telefone))}</td><td>${diasHtml(f.frequencia)}</td>
+    <td class="col-acao"><button class="btn btn-texto" data-editar="${f.id}" type="button">Editar</button></td></tr>`).join("")
     : `<tr><td colspan="${tt ? 7 : 6}" class="vazio">${dados.fornecedores.length ? "Nenhum fornecedor encontrado." : (tt ? "Nenhum fornecedor cadastrado." : "Nenhum fornecedor cadastrado nesta loja.")}</td></tr>`;
   $("#resumo-forn").textContent = tt && lista.length
-    ? `${lista.length} cadastro${lista.length > 1 ? "s" : ""} em ${lojasDistintas} loja${lojasDistintas > 1 ? "s" : ""}` : "";
+    ? `${lista.length} cadastro${lista.length > 1 ? "s" : ""} em ${lojasDistintas} loja${lojasDistintas > 1 ? "s" : ""} · clique no título da coluna para ordenar` : "";
 }
+$("#th-forn").addEventListener("click", (e) => {
+  const t = e.target.closest("th[data-of]"); if (!t) return;
+  if (fornOrd.col === t.dataset.of) fornOrd.asc = !fornOrd.asc; else { fornOrd.col = t.dataset.of; fornOrd.asc = true; }
+  renderForn();
+});
 $("#busca-forn").addEventListener("input", renderForn);
 $("#tb-forn").addEventListener("click", (e) => {
   const b = e.target.closest("[data-editar]");
@@ -624,7 +663,7 @@ function abrirGaveta(f) {
   const g = $("#gaveta");
   g.innerHTML = `<div class="gaveta-topo"><h3 id="gav-titulo">${novo ? "Novo fornecedor" : "Editar fornecedor"}</h3><button class="btn-fechar" type="button" id="gav-fechar" aria-label="Fechar">×</button></div>
     <form class="gaveta-corpo" id="gav-form" autocomplete="off">
-      <div class="linha-2"><label class="campo"><span>Código</span><input id="g-cod" value="${esc(f.cod)}"></label>
+      <div class="linha-2"><label class="campo"><span>Código</span><input id="g-cod" value="${esc(semNone(f.cod))}"></label>
       <label class="campo"><span>Comprador</span><input id="g-comp" value="${esc(f.comprador)}"></label></div>
       ${todasLojas() ? (novo
         ? `<label class="campo"><span>Loja</span><select id="g-loja"><option value="">Escolha a loja...</option>${LOJAS.map((l) => `<option value="${+l}">Loja ${l}</option>`).join("")}</select></label>`

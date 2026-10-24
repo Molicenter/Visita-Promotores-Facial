@@ -470,3 +470,30 @@ tr.linha-fora .tag.fora { margin-top: 6px; display: inline-block; }
 .data-oculta { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
 .apu-marcas { max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .75rem; }
 .tag.loja-tt { background: var(--azul); color: #fff; margin-right: 4px; vertical-align: 2px; }
+
+/* ---------- 1.3.2: menu retrátil + tabela de fornecedores ---------- */
+.btn-menu { flex: none; width: 40px; height: 40px; display: grid; place-items: center; border: 0; border-radius: 12px; background: var(--azul-claro); color: var(--azul); cursor: pointer; }
+.btn-menu:hover { filter: brightness(.96); }
+.btn-menu svg { width: 20px; height: 20px; }
+.app { transition: grid-template-columns .2s; }
+@media (min-width: 901px) {
+  .app.menu-recolhido { grid-template-columns: 76px 1fr; }
+  .menu-recolhido .lateral { padding-inline: 10px; }
+  .menu-recolhido .lateral .marca { justify-content: center; padding: 0; }
+  .menu-recolhido .lateral .marca > div, .menu-recolhido .nav-rotulo,
+  .menu-recolhido .conta strong, .menu-recolhido .conta small { display: none; }
+  .menu-recolhido .nav button { font-size: 0; justify-content: center; padding: 12px 0; }
+  .menu-recolhido .nav button svg { width: 22px; height: 22px; }
+  .menu-recolhido .nav .contador { position: absolute; top: 3px; right: 3px; font-size: .62rem; padding: 0 5px; }
+  .menu-recolhido .nav button.ativo::before { left: -10px; }
+  .menu-recolhido .conta { padding: 6px; background: none; }
+  .menu-recolhido .conta .btn { font-size: .72rem; padding: 6px 2px; }
+  .menu-recolhido .conteudo { max-width: none; }
+}
+@media (max-width: 900px) { .btn-menu { display: none; } }
+/* Editar sempre visível na ponta da tabela, mesmo com rolagem lateral */
+#pg-promotores th.ordena { cursor: pointer; user-select: none; }
+#pg-promotores th.ordena:hover, #pg-promotores th.ordena.sel { color: var(--azul); }
+#pg-promotores td.tel { white-space: nowrap; }
+#pg-promotores .col-acao { position: sticky; right: 0; text-align: right; background: var(--superficie); box-shadow: -8px 0 8px -8px rgba(0,0,0,.25); }
+#pg-promotores tbody tr:hover td.col-acao { background: var(--superficie-2); }

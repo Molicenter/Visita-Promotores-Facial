@@ -284,6 +284,8 @@ function irPara(pg) {
     ? `Fornecedores com visita prevista para ${hojeSP().sigla} e quem já passou pela loja.`
     : PAGINAS[pg][1];
   window.scrollTo(0, 0);
+  // o seletor de loja do topo só vale para as telas do dia a dia; a apuração tem filtro próprio
+  $("#pilula-loja").hidden = pg === "apuracao";
   if (pg === "apuracao" && !apu.carregado) escolherPeriodoApu("mes");
 }
 $("#nav").addEventListener("click", (e) => { const b = e.target.closest("button[data-pg]"); if (b) irPara(b.dataset.pg); });
@@ -1182,7 +1184,8 @@ $("#apu-periodos").addEventListener("click", (e) => { const b = e.target.closest
 ["#apu-ini", "#apu-fim"].forEach((s) => $(s).addEventListener("change", () => $$("#apu-periodos button").forEach((b) => b.classList.remove("sel"))));
 $("#btn-apurar").addEventListener("click", carregarApuracao);
 $("#apu-loja").addEventListener("change", renderApuracao);
-$("#busca-apu").addEventListener("input", renderApuracao);
+$("#apu-comprador").addEventListener("change", renderApuracao);
+$("#apu-fornecedor").addEventListener("input", renderApuracao);
 $("#apu-vis").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-v]"); if (!b) return;
   apu.vis = b.dataset.v; $$("#apu-vis button").forEach((x) => x.classList.toggle("sel", x === b)); renderApuracao();
@@ -1210,6 +1213,7 @@ async function carregarApuracao() {
     const r = await rpc("promot_web_apuracao", { p_token: sessao.token, p_ini: ini, p_fim: fim, p_loja: null });
     apu.linhas = (r && r.linhas) || [];
     apu.ini = ini; apu.fim = fim; apu.carregado = true;
+    preencherFiltrosApu();
     renderApuracao();
   } catch (e) { toast(e.message, "erro"); }
   finally { carregando(false); }
@@ -1223,10 +1227,27 @@ function somar(ls) {
   }, { previstas: 0, realizadas: 0, fora: 0, agenda: 0, nunca: 0 });
 }
 
+const compradoresDe = (l) => String(l.comprador || "").split(",").map((c) => c.trim()).filter(Boolean);
+function preencherFiltrosApu() {
+  const comp = [...new Set(apu.linhas.flatMap(compradoresDe))].sort((a, b) => norm(a).localeCompare(norm(b)));
+  const atual = $("#apu-comprador").value;
+  $("#apu-comprador").innerHTML = '<option value="">Todos</option>' + comp.map((c) => `<option ${c === atual ? "selected" : ""}>${esc(c)}</option>`).join("");
+  const forn = [...new Map(apu.linhas.map((l) => [norm(l.fornecedor), l.fornecedor])).values()].sort((a, b) => norm(a).localeCompare(norm(b)));
+  $("#apu-lista-forn").innerHTML = forn.map((f) => `<option value="${esc(f)}"></option>`).join("");
+}
+// filtros do topo (comprador e fornecedor) valem para tudo: quadros, tabela por loja, lista, matriz e planilha
+function filtroTopoApu(l) {
+  const comp = $("#apu-comprador").value;
+  if (comp && !compradoresDe(l).includes(comp)) return false;
+  const f = norm($("#apu-fornecedor").value);
+  return !f || norm(l.fornecedor).includes(f);
+}
+
 function renderApuracao() {
   if (!apu.carregado) return;
   const lojaSel = $("#apu-loja").value;
-  const doPeriodo = apu.linhas.filter((l) => !lojaSel || String(l.loja) === lojaSel);
+  const base = apu.linhas.filter(filtroTopoApu);
+  const doPeriodo = base.filter((l) => !lojaSel || String(l.loja) === lojaSel);
   const hojeIso = isoSP(new Date());
   $("#apu-nota").textContent = `Período ${brData(apu.ini)} a ${brData(apu.fim)}. Previstas = dias de visita da frequência cadastrada hoje em cada loja. `
     + (apu.fim >= hojeIso ? "O dia de hoje entra como previsto mesmo para quem ainda vai passar. " : "")
@@ -1236,15 +1257,15 @@ function renderApuracao() {
   const t = somar(doPeriodo);
   const pct = pctDe(t.realizadas, t.previstas) ?? 0;
   $("#apu-kpis").innerHTML = `
-    <div class="kpi destaque"><small>Visitas previstas</small><strong class="num">${t.previstas}</strong><span>${t.agenda} fornecedores com frequência${lojaSel ? " · Loja " + lojaSel.padStart(2, "0") : ""}</span></div>
+    <div class="kpi destaque"><small>Visitas previstas</small><strong class="num">${t.previstas}</strong><span>${t.agenda} fornecedores com frequência${lojaSel ? " · Loja " + lojaSel.padStart(2, "0") : ""}${$("#apu-comprador").value ? " · " + esc($("#apu-comprador").value) : ""}</span></div>
     <div class="kpi verde"><small>Realizadas</small><strong class="num">${t.realizadas}</strong><div class="progresso"><i style="width:${pct}%;background:var(--verde)"></i></div></div>
     <div class="kpi"><small>Cumprimento</small><strong class="num" style="color:${corPct(pct)}">${pct}%</strong><span>realizadas ÷ previstas</span></div>
     <div class="kpi laranja"><small>Fora da agenda</small><strong class="num">${t.fora}</strong><span>visitas em dia não previsto</span></div>
     <div class="kpi vermelho"><small>Nunca vieram</small><strong class="num">${t.nunca}</strong><span>tinham agenda e não registraram</span></div>`;
 
   // ---------- por loja (sempre todas, a loja escolhida fica marcada) ----------
-  const porLoja = LOJAS.map((l) => ({ loja: +l, ...somar(apu.linhas.filter((x) => x.loja === +l)) }));
-  const geral = somar(apu.linhas);
+  const porLoja = LOJAS.map((l) => ({ loja: +l, ...somar(base.filter((x) => x.loja === +l)) }));
+  const geral = somar(base);
   const linhaLoja = (o, rotulo, extra = "") => {
     const p = pctDe(o.realizadas, o.previstas);
     return `<tr ${extra}><td><b>${rotulo}</b></td><td class="n">${o.agenda}</td><td class="n">${o.previstas}</td><td class="n">${o.realizadas}</td>
@@ -1256,14 +1277,13 @@ function renderApuracao() {
     + linhaLoja(geral, "Rede", 'class="total"');
 
   // ---------- fornecedores ----------
-  const q = norm($("#busca-apu").value);
   const passa = (l) => {
     if (apu.filtro === "baixo" && !(l.previstas > 0 && l.realizadas / l.previstas < 0.5)) return false;
     if (apu.filtro === "nunca" && !(l.previstas > 0 && l.realizadas === 0)) return false;
     if (apu.filtro === "fora" && !(l.fora > 0)) return false;
-    return !q || norm(`${l.fornecedor} ${l.comprador || ""}`).includes(q);
+    return true;
   };
-  if (apu.vis === "matriz") return renderMatriz(apu.linhas.filter(passa));
+  if (apu.vis === "matriz") return renderMatriz(base.filter(passa));
 
   const ls = doPeriodo.filter(passa);
   const chave = {
@@ -1304,7 +1324,7 @@ function renderMatriz(ls) {
 $("#btn-apu-csv").addEventListener("click", () => {
   if (!apu.carregado) return;
   const lojaSel = $("#apu-loja").value;
-  const ls = apu.linhas.filter((l) => !lojaSel || String(l.loja) === lojaSel);
+  const ls = apu.linhas.filter((l) => filtroTopoApu(l) && (!lojaSel || String(l.loja) === lojaSel));
   const cel = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
   const cab = ["Loja", "Fornecedor", "Comprador", "Dias de visita", "Previstas", "Realizadas", "% Cumprimento", "Fora da agenda", "Última visita", "Tempo médio (min)"];
   const corpo = ls.map((l) => [String(l.loja).padStart(2, "0"), l.fornecedor, l.comprador, l.frequencia, l.previstas, l.realizadas,

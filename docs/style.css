@@ -459,3 +459,5 @@ tr.linha-fora .tag.fora { margin-top: 6px; display: inline-block; }
 .matriz .cel { display: block; font-size: .72rem; color: var(--texto-fraco); margin-top: 2px; font-variant-numeric: tabular-nums; }
 .kpi.vermelho strong { color: var(--vermelho); }
 .apu-tab tr.sel-loja td { background: var(--magenta-claro); }
+.apu-forn input { min-width: 220px; }
+@media (max-width: 700px) { .apu-data { flex: 1 1 100%; } .apu-data input, .apu-data select { flex: 1; } }

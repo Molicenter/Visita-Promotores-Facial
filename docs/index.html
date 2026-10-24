@@ -15,7 +15,7 @@
     // tema: claro por padrão; cada computador lembra a escolha
     try { var t = localStorage.getItem("promot_web_tema"); if (t === "dark" || t === "light") document.documentElement.dataset.theme = t; } catch (e) {}
   </script>
-  <link rel="stylesheet" href="style.css?v=1.2.0">
+  <link rel="stylesheet" href="style.css?v=1.2.1">
 </head>
 <body>
   <!-- =================== LOGIN =================== -->
@@ -261,6 +261,11 @@
               <label class="apu-data">até <input type="date" id="apu-fim"></label>
               <label class="apu-data">Loja
                 <select id="apu-loja"><option value="">Todas</option></select></label>
+              <label class="apu-data">Comprador
+                <select id="apu-comprador"><option value="">Todos</option></select></label>
+              <label class="apu-data apu-forn">Fornecedor
+                <input id="apu-fornecedor" type="search" list="apu-lista-forn" placeholder="Todos" autocomplete="off"></label>
+              <datalist id="apu-lista-forn"></datalist>
               <button class="btn btn-primario" type="button" id="btn-apurar">Atualizar</button>
             </div>
             <p class="dica" id="apu-nota"></p>
@@ -287,7 +292,6 @@
                 <button data-f="nunca" type="button">Nunca vieram</button>
                 <button data-f="fora" type="button">Sem agenda / fora do dia</button>
               </div>
-              <input class="busca" id="busca-apu" type="search" placeholder="Buscar fornecedor ou comprador">
               <button class="btn" type="button" id="btn-apu-csv">Baixar planilha</button>
             </div>
             <div class="tabela-wrap"><table class="apu-tab" id="tab-apu"></table></div>
@@ -303,8 +307,8 @@
   <div id="carregando" class="carregando" hidden><div class="spinner"></div></div>
 
   <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api@1.7.15/dist/face-api.js"></script>
-  <script src="config.js?v=1.2.0"></script>
-  <script src="app.js?v=1.2.0"></script>
+  <script src="config.js?v=1.2.1"></script>
+  <script src="app.js?v=1.2.1"></script>
   <script>
     if ("serviceWorker" in navigator) window.addEventListener("load", function () { navigator.serviceWorker.register("sw.js").catch(function () {}); });
   </script>

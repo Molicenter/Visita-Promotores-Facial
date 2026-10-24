@@ -461,3 +461,12 @@ tr.linha-fora .tag.fora { margin-top: 6px; display: inline-block; }
 .apu-tab tr.sel-loja td { background: var(--magenta-claro); }
 .apu-forn input { min-width: 220px; }
 @media (max-width: 700px) { .apu-data { flex: 1 1 100%; } .apu-data input, .apu-data select { flex: 1; } }
+.data-br { position: relative; display: inline-flex; align-items: center; }
+.data-br input[type="text"] { width: 132px; padding-right: 38px; font-variant-numeric: tabular-nums; }
+.data-br input.invalida { border-color: var(--vermelho); }
+.data-cal { position: absolute; right: 4px; width: 32px; height: 32px; border: 0; border-radius: 8px; background: transparent; color: var(--texto-suave); display: grid; place-items: center; cursor: pointer; }
+.data-cal:hover { background: var(--azul-claro); color: var(--azul); }
+.data-cal svg { width: 18px; height: 18px; }
+.data-oculta { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; border: 0; padding: 0; }
+.apu-marcas { max-width: 320px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: .75rem; }
+.tag.loja-tt { background: var(--azul); color: #fff; margin-right: 4px; vertical-align: 2px; }

@@ -225,14 +225,18 @@ async function iniciarApp() {
   if (admin) {
     let salva = null;
     try { salva = localStorage.getItem("promot_web_loja_admin"); } catch {}
-    lojaAtual = Number(salva) || 1;
+    lojaAtual = salva === "0" ? 0 : Number(salva) || 1;
+    try { ultimaLoja = Number(localStorage.getItem("promot_web_ultima_loja")) || 1; } catch {}
+    if (lojaAtual) ultimaLoja = lojaAtual;
     $("#pilula-loja").innerHTML = 'Loja <select id="sel-loja" aria-label="Loja">' +
+      `<option value="0" ${lojaAtual === 0 ? "selected" : ""}>TT</option>` +
       LOJAS.map((l) => `<option value="${+l}" ${+l === lojaAtual ? "selected" : ""}>${l}</option>`).join("") + "</select>";
     $("#sel-loja").addEventListener("change", async (ev) => {
-      lojaAtual = Number(ev.target.value);
-      try { localStorage.setItem("promot_web_loja_admin", lojaAtual); } catch {}
-      await recarregar(true);
-      toast("Mostrando a Loja " + String(lojaAtual).padStart(2, "0"));
+      const nova = Number(ev.target.value);
+      // "TT" (todas as lojas) só existe na Agenda; nas outras telas é preciso uma loja só
+      if (nova === 0 && paginaAtual !== "agenda") irPara("agenda");
+      await trocarLoja(nova);
+      toast(nova === 0 ? "Mostrando todas as lojas" : "Mostrando a Loja " + String(nova).padStart(2, "0"));
     });
   } else {
     lojaAtual = Number(sessao.loja);
@@ -244,6 +248,20 @@ async function iniciarApp() {
   const ok = await recarregar(true);
   if (!ok) return;
   prepararFacial();          // modelos + câmera (em segundo plano)
+}
+
+// administrador: 0 = todas as lojas ("TT"), só na Agenda
+let ultimaLoja = 1;
+const todasLojas = () => lojaAtual === 0;
+const lojaDe = (o) => (todasLojas() ? Number(o && o.loja) : lojaAtual);
+const lojaTxt = (n) => String(n).padStart(2, "0");
+async function trocarLoja(nova) {
+  lojaAtual = nova;
+  if (nova) { ultimaLoja = nova; try { localStorage.setItem("promot_web_ultima_loja", nova); } catch {} }
+  try { localStorage.setItem("promot_web_loja_admin", nova); } catch {}
+  const sel = $("#sel-loja"); if (sel) sel.value = String(nova);
+  $("#pg-sub").textContent = subtituloPagina(paginaAtual);
+  await recarregar(true);
 }
 
 async function recarregar(comSpinner = false) {
@@ -275,15 +293,23 @@ const PAGINAS = {
   facial: ["Cadastro facial", "Foto de referência que a entrada facial usa para reconhecer o promotor."],
   apuracao: ["Apuração de visitas", "Visitas previstas pela frequência × visitas registradas, por fornecedor e por loja."],
 };
+function subtituloPagina(pg) {
+  if (pg !== "agenda") return PAGINAS[pg][1];
+  return todasLojas()
+    ? `Todas as lojas: fornecedores com visita prevista para ${hojeSP().sigla} e quem já passou.`
+    : `Fornecedores com visita prevista para ${hojeSP().sigla} e quem já passou pela loja.`;
+}
 function irPara(pg) {
   paginaAtual = pg;
   $$("#nav button").forEach((b) => b.classList.toggle("ativo", b.dataset.pg === pg));
   Object.keys(PAGINAS).forEach((k) => ($("#pg-" + k).hidden = k !== pg));
   $("#pg-titulo").textContent = PAGINAS[pg][0];
-  $("#pg-sub").textContent = pg === "agenda"
-    ? `Fornecedores com visita prevista para ${hojeSP().sigla} e quem já passou pela loja.`
-    : PAGINAS[pg][1];
+  $("#pg-sub").textContent = subtituloPagina(pg);
   window.scrollTo(0, 0);
+  // saiu da Agenda com "TT": volta para a última loja escolhida
+  if (todasLojas() && pg !== "agenda" && pg !== "apuracao") {
+    trocarLoja(ultimaLoja).then(() => toast(`${PAGINAS[pg][0]} é por loja: mostrando a Loja ${lojaTxt(ultimaLoja)}`));
+  }
   // o seletor de loja do topo só vale para as telas do dia a dia; a apuração tem filtro próprio
   $("#pilula-loja").hidden = pg === "apuracao";
   if (pg === "apuracao" && !apu.carregado) escolherPeriodoApu("mes");
@@ -302,9 +328,10 @@ function renderTudo() {
 // Visitas de hoje
 // ============================================================
 const fornDoDia = () => dados.fornecedores.filter((f) => temDia(f.frequencia, hojeSP().sigla));
-function visitaDe(nome) {
+const chaveLF = (o) => (todasLojas() ? o.loja + "|" : "") + norm(o.fornecedor);
+function visitaDe(nome, loja) {
   const n = norm(nome);
-  return dados.visitas.find((v) => norm(v.fornecedor) === n);
+  return dados.visitas.find((v) => norm(v.fornecedor) === n && (!todasLojas() || Number(v.loja) === Number(loja)));
 }
 // tempo na loja: "1h25" / "40 min"
 function fmtTempo(min) {
@@ -359,7 +386,7 @@ document.addEventListener("click", async (e) => {
   b.disabled = true; b.textContent = "Registrando...";
   try {
     const r = await rpc("promot_web_registrar", {
-      p_token: sessao.token, p_loja: lojaAtual, p_fornecedor: f.fornecedor, p_obs: "", p_foto: "", p_facial: false,
+      p_token: sessao.token, p_loja: lojaDe(f), p_fornecedor: f.fornecedor, p_obs: "", p_foto: "", p_facial: false,
     });
     await recarregar(false);
     toast(`Entrada de ${f.fornecedor} às ${horaDe(r.data)}`, "ok");
@@ -372,7 +399,8 @@ document.addEventListener("click", async (e) => {
   if (!b || !pedirConfirmacao(b, "Apagar registro?")) return;
   b.disabled = true; b.textContent = "Apagando...";
   try {
-    const r = await rpc("promot_web_cancelar_visita", { p_token: sessao.token, p_loja: lojaAtual, p_id: Number(b.dataset.cancelar) });
+    const vc = dados.visitas.find((x) => String(x.id) === b.dataset.cancelar);
+    const r = await rpc("promot_web_cancelar_visita", { p_token: sessao.token, p_loja: lojaDe(vc), p_id: Number(b.dataset.cancelar) });
     await recarregar(false);
     toast(`Registro de ${r.fornecedor} cancelado`, "ok");
   } catch (err) { toast(err.message, "erro"); voltarBotao(b); }
@@ -392,7 +420,7 @@ document.addEventListener("click", async (e) => {
   b.disabled = true; b.textContent = "Registrando...";
   const v = dados.visitas.find((x) => String(x.id) === b.dataset.saida);
   try {
-    const r = await rpc("promot_web_registrar_saida", { p_token: sessao.token, p_loja: lojaAtual, p_id: Number(b.dataset.saida) });
+    const r = await rpc("promot_web_registrar_saida", { p_token: sessao.token, p_loja: lojaDe(v), p_id: Number(b.dataset.saida) });
     await recarregar(false);
     toast(`Saída de ${v ? v.fornecedor : "promotor"} às ${horaDe(r.saida)} · ${fmtTempo(r.minutos)} na loja`, "ok");
   } catch (err) {
@@ -417,7 +445,7 @@ function renderRegistrosHoje() {
       ${botaoSaida(r) ? `<div style="margin-top:6px">${botaoSaida(r)}</div>` : ""}</div>
       <div class="hora num">${horaDe(r.data)}${temSaida(r) ? `<small>até ${horaDe(r.saida)}</small><small>${fmtTempo(r.minutos)}</small>` : esqueceuSaida(r) ? '<small class="alerta">esqueceu a saída?</small>' : "<small>na loja</small>"}</div></div>`;
   }).join("") : '<p class="vazio">Nenhuma visita registrada hoje nesta loja.</p>';
-  const pend = fornDoDia().filter((f) => !visitaDe(f.fornecedor)).length;
+  const pend = fornDoDia().filter((f) => !visitaDe(f.fornecedor, f.loja)).length;
   const c = $("#nav-pendentes"); c.textContent = pend; c.hidden = pend === 0;
 }
 
@@ -431,12 +459,12 @@ function diasHtml(freq) {
 function renderAgenda() {
   const hj = hojeSP();
   const dia = fornDoDia();
-  const ok = dia.filter((f) => visitaDe(f.fornecedor)).length;
+  const ok = dia.filter((f) => visitaDe(f.fornecedor, f.loja)).length;
   const pend = dia.length - ok;
-  const nomesDia = new Set(dia.map((f) => norm(f.fornecedor)));
+  const nomesDia = new Set(dia.map(chaveLF));
   // visitas de fornecedores que NÃO estão previstos para hoje (registro manual ou facial em dia fora da agenda)
-  const visitasFora = dados.visitas.filter((v) => !nomesDia.has(norm(v.fornecedor)));
-  const fora = new Set(visitasFora.map((v) => norm(v.fornecedor))).size;
+  const visitasFora = dados.visitas.filter((v) => !nomesDia.has(chaveLF(v)));
+  const fora = new Set(visitasFora.map(chaveLF)).size;
   const pct = dia.length ? Math.round((ok / dia.length) * 100) : 0;
   $("#kpis").innerHTML = `
     <div class="kpi destaque"><small>Previstos hoje</small><strong class="num">${dia.length}</strong><span>${hj.sigla}, ${hj.data}</span></div>
@@ -446,11 +474,12 @@ function renderAgenda() {
     <div class="kpi magenta clicavel" data-f="naloja"><small>Na loja agora</small><strong class="num">${dados.visitas.filter((v) => !temSaida(v)).length}</strong><span>entraram e ainda não saíram</span></div>`;
   const q = norm($("#busca-agenda").value);
   const semCadastro = (nome) => ({ id: "", fornecedor: nome, marca: "", promotor: "", telefone: "", comprador: "", frequencia: "" });
-  const itens = dia.map((f) => ({ f, r: visitaDe(f.fornecedor), fora: false }))
+  const itens = dia.map((f) => ({ f, r: visitaDe(f.fornecedor, f.loja), fora: false }))
     .concat(visitasFora.map((v) => ({
-      f: dados.fornecedores.find((x) => norm(x.fornecedor) === norm(v.fornecedor)) || semCadastro(v.fornecedor),
+      f: dados.fornecedores.find((x) => chaveLF(x) === chaveLF(v)) || { ...semCadastro(v.fornecedor), loja: v.loja },
       r: v, fora: true,
     })));
+  if (todasLojas()) itens.sort((a, b) => (a.f.loja - b.f.loja) || norm(a.f.fornecedor).localeCompare(norm(b.f.fornecedor)));
   const linhas = itens.filter(({ f, r, fora: ehFora }) => {
     if (filtroAgenda === "pend" && r) return false;
     if (filtroAgenda === "fora" && !ehFora) return false;
@@ -460,7 +489,8 @@ function renderAgenda() {
   });
   $("#tb-agenda").innerHTML = linhas.length ? linhas.map(({ f, r, fora: ehFora }) => {
     const marcaFora = ehFora ? `<div><span class="tag fora">Fora da agenda${r.frequencia === "FACIAL" ? " · facial" : " · manual"}</span></div>` : "";
-    return `<tr class="${ehFora ? "linha-fora" : ""}"><td><div class="principal-cel">${esc(f.fornecedor)}</div><div class="sub-cel">${esc(f.marca)}</div>${marcaFora}</td>
+    const tagLoja = todasLojas() ? `<span class="tag loja-tt">Loja ${lojaTxt(f.loja)}</span> ` : "";
+    return `<tr class="${ehFora ? "linha-fora" : ""}"><td><div class="principal-cel">${tagLoja}${esc(f.fornecedor)}</div><div class="sub-cel">${esc(f.marca)}</div>${marcaFora}</td>
       <td><div>${esc(f.promotor)}</div><div class="sub-cel num">${esc(f.telefone)}</div></td><td>${esc(f.comprador)}</td>
       <td>${diasHtml(f.frequencia)}</td>
       <td>${situacaoHtml(r)}</td>
@@ -694,10 +724,10 @@ async function salvarEdicaoVisita(v) {
   btn.disabled = true; btn.textContent = fotoEdicao ? "Enviando foto..." : "Salvando...";
   try {
     const link = fotoEdicao ? await enviarFoto(fotoEdicao) : "";
-    await rpc("promot_web_editar_visita", { p_token: sessao.token, p_loja: lojaAtual, p_id: v.id, p_obs: $("#ed-obs").value, p_foto: link });
+    await rpc("promot_web_editar_visita", { p_token: sessao.token, p_loja: lojaDe(v), p_id: v.id, p_obs: $("#ed-obs").value, p_foto: link });
     const novaSaida = $("#ed-saida").value.trim();
     if (novaSaida !== (temSaida(v) ? horaDe(v.saida) : "")) {
-      await rpc("promot_web_definir_saida", { p_token: sessao.token, p_loja: lojaAtual, p_id: v.id, p_hora: novaSaida });
+      await rpc("promot_web_definir_saida", { p_token: sessao.token, p_loja: lojaDe(v), p_id: v.id, p_hora: novaSaida });
     }
     fecharGaveta(); await recarregar(false);
     toast("Registro de " + v.fornecedor + " atualizado", "ok");
@@ -885,6 +915,7 @@ async function verificarQuadro() {
 }
 
 async function reconhecer() {
+  if (todasLojas()) return;
   facial.ocupado = true;
   const v = $("#video"), cam = $("#camera");
   try {
@@ -1177,15 +1208,42 @@ function periodoApu(tipo) {
 function escolherPeriodoApu(tipo) {
   $$("#apu-periodos button").forEach((b) => b.classList.toggle("sel", b.dataset.p === tipo));
   const [i, f] = periodoApu(tipo);
-  $("#apu-ini").value = i; $("#apu-fim").value = f;
+  definirDataApu("#apu-ini", i); definirDataApu("#apu-fim", f);
   carregarApuracao();
 }
 $("#apu-periodos").addEventListener("click", (e) => { const b = e.target.closest("button[data-p]"); if (b) escolherPeriodoApu(b.dataset.p); });
-["#apu-ini", "#apu-fim"].forEach((s) => $(s).addEventListener("change", () => $$("#apu-periodos button").forEach((b) => b.classList.remove("sel"))));
+// datas no formato brasileiro (dd/mm/aaaa): o campo de data nativo segue o idioma do navegador,
+// por isso o campo é texto com máscara e o botão do calendário abre o seletor nativo escondido
+const isoValida = (iso) => /^\d{4}-\d{2}-\d{2}$/.test(iso) && !isNaN(new Date(iso + "T12:00:00")) && new Date(iso + "T12:00:00").toISOString().slice(0, 10) === iso;
+function lerDataApu(sel) {
+  const m = $(sel).value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  const iso = m ? `${m[3]}-${m[2]}-${m[1]}` : "";
+  return isoValida(iso) ? iso : "";
+}
+function definirDataApu(sel, iso) { $(sel).value = iso ? brData(iso) : ""; $(sel).classList.remove("invalida"); }
+const tirarPeriodoSel = () => $$("#apu-periodos button").forEach((b) => b.classList.remove("sel"));
+["#apu-ini", "#apu-fim"].forEach((sel) => {
+  const el = $(sel);
+  el.addEventListener("input", () => {
+    const d = el.value.replace(/\D/g, "").slice(0, 8);
+    el.value = d.length > 4 ? `${d.slice(0, 2)}/${d.slice(2, 4)}/${d.slice(4)}` : d.length > 2 ? `${d.slice(0, 2)}/${d.slice(2)}` : d;
+    el.classList.toggle("invalida", el.value.length === 10 && !lerDataApu(sel));
+    tirarPeriodoSel();
+  });
+  el.addEventListener("keydown", (e) => { if (e.key === "Enter") carregarApuracao(); });
+  const oculto = $(sel + "-cal");
+  oculto.addEventListener("change", () => { if (oculto.value) { definirDataApu(sel, oculto.value); tirarPeriodoSel(); } });
+});
+$$(".data-cal").forEach((b) => b.addEventListener("click", () => {
+  const alvo = "#" + b.dataset.alvo, oculto = $(alvo + "-cal");
+  oculto.value = lerDataApu(alvo);
+  try { oculto.showPicker(); } catch { oculto.focus(); oculto.click(); }
+}));
 $("#btn-apurar").addEventListener("click", carregarApuracao);
 $("#apu-loja").addEventListener("change", renderApuracao);
 $("#apu-comprador").addEventListener("change", renderApuracao);
 $("#apu-fornecedor").addEventListener("input", renderApuracao);
+$("#apu-marca").addEventListener("input", renderApuracao);
 $("#apu-vis").addEventListener("click", (e) => {
   const b = e.target.closest("button[data-v]"); if (!b) return;
   apu.vis = b.dataset.v; $$("#apu-vis button").forEach((x) => x.classList.toggle("sel", x === b)); renderApuracao();
@@ -1206,8 +1264,9 @@ $("#tab-apu").addEventListener("click", (e) => {
 });
 
 async function carregarApuracao() {
-  const ini = $("#apu-ini").value, fim = $("#apu-fim").value;
-  if (!ini || !fim || fim < ini) { toast("Escolha um período válido.", "erro"); return; }
+  const ini = lerDataApu("#apu-ini"), fim = lerDataApu("#apu-fim");
+  if (!ini || !fim) { toast("Data inválida. Use o formato dd/mm/aaaa.", "erro"); return; }
+  if (fim < ini) { toast("A data final é antes da inicial.", "erro"); return; }
   carregando(true);
   try {
     const r = await rpc("promot_web_apuracao", { p_token: sessao.token, p_ini: ini, p_fim: fim, p_loja: null });
@@ -1234,13 +1293,18 @@ function preencherFiltrosApu() {
   $("#apu-comprador").innerHTML = '<option value="">Todos</option>' + comp.map((c) => `<option ${c === atual ? "selected" : ""}>${esc(c)}</option>`).join("");
   const forn = [...new Map(apu.linhas.map((l) => [norm(l.fornecedor), l.fornecedor])).values()].sort((a, b) => norm(a).localeCompare(norm(b)));
   $("#apu-lista-forn").innerHTML = forn.map((f) => `<option value="${esc(f)}"></option>`).join("");
+  const marcas = [...new Map(apu.linhas.flatMap(marcasDe).map((m) => [norm(m), m])).values()].sort((a, b) => norm(a).localeCompare(norm(b)));
+  $("#apu-lista-marca").innerHTML = marcas.map((m) => `<option value="${esc(m)}"></option>`).join("");
 }
+const marcasDe = (l) => String(l.marcas || "").split(";").map((m) => m.trim()).filter(Boolean);
 // filtros do topo (comprador e fornecedor) valem para tudo: quadros, tabela por loja, lista, matriz e planilha
 function filtroTopoApu(l) {
   const comp = $("#apu-comprador").value;
   if (comp && !compradoresDe(l).includes(comp)) return false;
   const f = norm($("#apu-fornecedor").value);
-  return !f || norm(l.fornecedor).includes(f);
+  if (f && !norm(l.fornecedor).includes(f)) return false;
+  const m = norm($("#apu-marca").value);
+  return !m || marcasDe(l).some((x) => norm(x).includes(m));
 }
 
 function renderApuracao() {
@@ -1295,7 +1359,7 @@ function renderApuracao() {
   $("#tab-apu").classList.remove("matriz");
   $("#tab-apu").innerHTML = `<thead><tr>${th("fornecedor", "Fornecedor")}${th("loja", "Loja")}<th>Dias de visita</th>${th("previstas", "Previstas", "n")}${th("realizadas", "Realizadas", "n")}${th("pct", "%", "c")}${th("fora", "Fora da agenda", "n")}${th("ultima", "Última visita")}<th class="n">Tempo médio</th></tr></thead>
     <tbody>${ls.length ? ls.map((l) => `<tr>
-      <td><div class="principal-cel">${esc(l.fornecedor)}</div><div class="sub-cel">${esc(l.comprador || "")}</div></td>
+      <td><div class="principal-cel">${esc(l.fornecedor)}</div><div class="sub-cel">${esc(l.comprador || "")}</div>${l.marcas ? `<div class="sub-cel apu-marcas" title="${esc(l.marcas)}">${esc(l.marcas)}</div>` : ""}</td>
       <td>${String(l.loja).padStart(2, "0")}</td>
       <td>${l.frequencia ? '<span class="dias">' + DIAS.map((d) => `<i class="${temDia(l.frequencia, d) ? "on" : ""}">${d}</i>`).join("") + "</span>" : '<span class="sub-cel">sem frequência</span>'}</td>
       <td class="n">${l.previstas}</td><td class="n">${l.realizadas}</td><td class="c">${pctHtml(l.realizadas, l.previstas)}</td>
@@ -1326,8 +1390,8 @@ $("#btn-apu-csv").addEventListener("click", () => {
   const lojaSel = $("#apu-loja").value;
   const ls = apu.linhas.filter((l) => filtroTopoApu(l) && (!lojaSel || String(l.loja) === lojaSel));
   const cel = (v) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  const cab = ["Loja", "Fornecedor", "Comprador", "Dias de visita", "Previstas", "Realizadas", "% Cumprimento", "Fora da agenda", "Última visita", "Tempo médio (min)"];
-  const corpo = ls.map((l) => [String(l.loja).padStart(2, "0"), l.fornecedor, l.comprador, l.frequencia, l.previstas, l.realizadas,
+  const cab = ["Loja", "Fornecedor", "Marcas", "Comprador", "Dias de visita", "Previstas", "Realizadas", "% Cumprimento", "Fora da agenda", "Última visita", "Tempo médio (min)"];
+  const corpo = ls.map((l) => [String(l.loja).padStart(2, "0"), l.fornecedor, l.marcas, l.comprador, l.frequencia, l.previstas, l.realizadas,
     l.previstas ? String(Math.round((l.realizadas / l.previstas) * 1000) / 10).replace(".", ",") : "", l.fora, brData(l.ultima), l.media_min ?? ""]);
   const csv = "﻿" + [cab, ...corpo].map((r) => r.map(cel).join(";")).join("\r\n");
   const a = document.createElement("a");

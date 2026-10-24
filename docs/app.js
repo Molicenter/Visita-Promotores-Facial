@@ -684,8 +684,10 @@ function abrirGaveta(f) {
   $("#gav-salvar").onclick = () => salvarForn(novo);
   const ex = $("#g-excluir");
   if (ex) ex.onclick = () => {
-    $("#g-excluir-area").innerHTML = `<div class="confirmar-excluir">Remover ${esc(f.fornecedor)} desta loja? Os registros de visita já feitos continuam guardados.
-      <div><button class="btn btn-secundario" type="button" id="g-nao">Manter</button><button class="btn btn-perigo" type="button" id="g-sim">Remover</button></div></div>`;
+    // a confirmação vai para o rodapé da gaveta (sempre visível) no lugar de Cancelar/Salvar
+    $("#g-excluir-area").innerHTML = `<div class="confirmar-excluir">Remover ${esc(f.fornecedor)} da Loja ${lojaTxt(lojaDe(f))}? Os registros de visita já feitos continuam guardados. Confirme no botão vermelho abaixo.</div>`;
+    $("#g-excluir-area").scrollIntoView({ block: "nearest", behavior: "smooth" });
+    $(".gaveta-rodape").innerHTML = `<button class="btn btn-secundario" type="button" id="g-nao">Manter</button><button class="btn btn-perigo" type="button" id="g-sim">Remover de vez</button>`;
     $("#g-nao").onclick = () => abrirGaveta(fornEditando);
     $("#g-sim").onclick = async () => {
       try {
